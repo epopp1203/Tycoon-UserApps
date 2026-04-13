@@ -282,29 +282,10 @@ function updateInventoryWarningState(isWarning) {
 }
 
 function playInventoryAlertSound() {
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContext) return;
-
-  try {
-    const audioCtx = new AudioContext();
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume().catch(() => {});
-    }
-
-    const oscillator = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-
-    oscillator.type = 'sine';
-    oscillator.frequency.value = getAlertToneFrequency();
-    gain.gain.value = 0.2;
-
-    oscillator.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    oscillator.start();
-    oscillator.stop(audioCtx.currentTime + 0.18);
-  } catch (error) {
-    // Audio playback failed; fail silently.
+  for (let i = 0; i < 3; i++) {
+    setTimeout(() => {
+      window.parent.postMessage({ type: "sfx", sfx: 1 }, "*");
+    }, i * 500);
   }
 }
 
