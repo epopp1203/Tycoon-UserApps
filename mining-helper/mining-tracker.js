@@ -282,10 +282,10 @@ function updateInventoryWarningState(isWarning) {
 }
 
 function playInventoryAlertSound() {
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 7; i++) {
     setTimeout(() => {
-      window.parent.postMessage({ type: "sfx", sfx: 1 }, "*");
-    }, i * 500);
+      window.parent.postMessage({ type: "sfx", sfx: 17 }, "*");
+    }, i * 200);
   }
 }
 
