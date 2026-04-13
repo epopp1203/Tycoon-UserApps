@@ -22,6 +22,17 @@ let isHorizontal = false;
 let sessionTotalMined = 0;
 let lastTotalOre = 0;
 let hasInitialized = false;
+let inventoryAlertTriggered = false;
+let alertTone = 'high';
+const INVENTORY_ALERT_THRESHOLD = 90;
+const ALERT_TONES = {
+  high: 880,
+  medium: 660,
+  low: 520
+};
+const STORAGE_KEYS = {
+  alertTone: 'miningTracker_alertTone'
+};
 
 // NEW: one-shot initial request + capped retry
 let hasRequestedInitialData = false;
@@ -221,6 +232,97 @@ function updateSessionTime() {
   }
 }
 
+function getAlertToneFrequency() {
+  return ALERT_TONES[alertTone] ?? ALERT_TONES.high;
+}
+
+function loadAlertConfig() {
+  try {
+    const savedTone = localStorage.getItem(STORAGE_KEYS.alertTone);
+    if (savedTone && ALERT_TONES[savedTone]) {
+      alertTone = savedTone;
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function saveAlertConfig() {
+  try {
+    localStorage.setItem(STORAGE_KEYS.alertTone, alertTone);
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function initializeAlertControls() {
+  const toneSelect = document.getElementById('alert-tone-select');
+  if (!toneSelect) return;
+
+  toneSelect.value = alertTone;
+  toneSelect.addEventListener('change', (event) => {
+    const value = event.target.value;
+    if (ALERT_TONES[value]) {
+      alertTone = value;
+      saveAlertConfig();
+    }
+  });
+}
+
+function updateInventoryWarningState(isWarning) {
+  const inventoryCard = document.querySelector('.inventory-card');
+  const warningBadge = document.getElementById('alert-warning-badge');
+
+  if (inventoryCard) {
+    inventoryCard.classList.toggle('alerting', isWarning);
+  }
+  if (warningBadge) {
+    warningBadge.hidden = !isWarning;
+  }
+}
+
+function playInventoryAlertSound() {
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return;
+
+  try {
+    const audioCtx = new AudioContext();
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+
+    const oscillator = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    oscillator.type = 'sine';
+    oscillator.frequency.value = getAlertToneFrequency();
+    gain.gain.value = 0.2;
+
+    oscillator.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.18);
+  } catch (error) {
+    // Audio playback failed; fail silently.
+  }
+}
+
+function checkInventoryThreshold(percentage) {
+  const isWarning = percentage > INVENTORY_ALERT_THRESHOLD;
+
+  if (isWarning) {
+    if (!inventoryAlertTriggered) {
+      inventoryAlertTriggered = true;
+      playInventoryAlertSound();
+    }
+  } else {
+    inventoryAlertTriggered = false;
+  }
+
+  updateInventoryWarningState(isWarning);
+}
+
 function updateHUD(weight, maxWeight) {
   // Removed logging: console.log("Mining tracker: updateHUD called with weight =", weight, "maxWeight =", maxWeight);
   const invCurrent = document.getElementById("inv-current");
@@ -236,9 +338,12 @@ function updateHUD(weight, maxWeight) {
   if (invMax) invMax.textContent = roundedMax;
   if (invPercent) invPercent.textContent = invPercentValue + "%";
   
-  if (inventoryProgress && weight != null && maxWeight != null) {
+  if (weight != null && maxWeight != null) {
     const percentage = (weight / maxWeight) * 100;
-    inventoryProgress.style.width = percentage + "%";
+    if (inventoryProgress) {
+      inventoryProgress.style.width = percentage + "%";
+    }
+    checkInventoryThreshold(percentage);
   }
 
   const copperRate = getOreRate("mining_copper");
@@ -631,6 +736,10 @@ window.onload = () => {
     }
   };
   window.addEventListener('keydown', escapeListener);
+
+  loadAlertConfig();
+  initializeAlertControls();
+  updateInventoryWarningState(false);
 
   // Instead of spamming, request once + (optional) limited retries only if no data arrives
   requestInitialData();
