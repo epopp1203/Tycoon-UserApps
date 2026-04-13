@@ -24,11 +24,11 @@ let lastTotalOre = 0;
 let hasInitialized = false;
 let inventoryAlertTriggered = false;
 let alertTone = 'high';
-const INVENTORY_ALERT_THRESHOLD = 90;
+const INVENTORY_ALERT_THRESHOLD = 95;
 const ALERT_TONES = {
   high: 880,
-  medium: 660,
-  low: 520
+  medium: 600,
+  low: 300
 };
 const STORAGE_KEYS = {
   alertTone: 'miningTracker_alertTone'
