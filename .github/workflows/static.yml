@@ -2,7 +2,7 @@ name: Deploy Static Site to Pages
 
 on:
   push:
-    branches: ["main"] # Ensure this matches your default branch name
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
@@ -18,7 +18,7 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps: deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -30,7 +30,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # This uploads the entire repository (root index.html + all folders)
           path: '.'
       
       - name: Deploy to GitHub Pages
