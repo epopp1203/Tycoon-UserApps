@@ -8,21 +8,15 @@ if (typeof console !== 'undefined') {
 
 const REQUIRED_JOB = "miner"
 let isMinerJob = false;
-let isMonitoring = false;
 let lastWeight = null;
 let lastMaxWeight = null;
 let lastInventoryObj = null;
-let lastPrintedWeight = null;
-let lastMenuOpenTime = 0;
-let didReopenIron = false;
-let didReopenCopper = false;
 let sessionStartTime = null;
 let isMinimized = false;
 let isHorizontal = false;
 let sessionTotalMined = 0;
 let lastTotalOre = 0;
 let hasInitialized = false;
-let inventoryAlertTriggered = false;
 let inventoryAlertTriggered = false;
 let INVENTORY_ALERT_THRESHOLD = parseInt(localStorage.getItem("miningTracker_threshold")) || 95;
 let isMuted = localStorage.getItem("miningTracker_muted") === "true";
@@ -648,7 +642,7 @@ window.addEventListener("message", (event) => {
     }
   }
 
-  if (data.menu_choices && window.state.cache.menu_open && !isExchanging) {
+  if (data.menu_choices && window.state.cache.menu_open && !isExchanging && data.menu_open == null) {
     setTimeout(() => tryAutoVoucherExchange(), 100);
   }
 
