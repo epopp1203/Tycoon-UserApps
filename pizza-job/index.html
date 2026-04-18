@@ -11,13 +11,14 @@
 			<header class="topbar">
 				<div class="brand">
 					<h1>Pizza Job</h1>
-					<p class="subtitle">Order + Supply Assistant</p>
+					<p class="subtitle">Order + Pizza Bot</p>
 				</div>
 				<div class="topbar-actions">
-					<button id="simulate-order-btn" class="btn btn-secondary" title="Load a random order">
-						New Order
-					</button>
+					<button id="debug-toggle-btn" class="btn btn-secondary" title="Toggle message log">Debug</button>
 					<button id="settings-toggle-btn" class="btn btn-primary" title="Open settings">Settings</button>
+					<button id="reset-panel-btn" class="btn btn-secondary" title="Reset panel position and size">
+						Reset
+					</button>
 				</div>
 			</header>
 
@@ -27,6 +28,7 @@
 						<h2>Current Order</h2>
 						<span id="order-id" class="pill">#0000</span>
 					</div>
+					<div id="order-sync-meta" class="order-sync-meta">Last Sync: Local</div>
 					<div id="order-list" class="item-list"></div>
 					<div class="card-footer">
 						<button id="clear-order-btn" class="btn btn-secondary">Clear Order</button>
@@ -40,13 +42,6 @@
 					</div>
 					<div id="trunk-list" class="item-list"></div>
 				</section>
-
-				<section class="card" aria-label="Personal inventory">
-					<div class="card-header">
-						<h2>Personal Inventory</h2>
-					</div>
-					<div id="inventory-list" class="item-list"></div>
-				</section>
 			</main>
 
 			<aside id="settings-panel" class="settings-panel hidden" aria-label="Settings panel">
@@ -59,22 +54,53 @@
 						<span>Low Stock Threshold</span>
 						<input id="low-threshold-input" type="number" min="1" max="99" value="5" />
 					</label>
+					<label class="setting-row stacked">
+						<div class="setting-inline-row">
+							<span>Window Background Opacity</span>
+							<span id="bg-opacity-value">82%</span>
+						</div>
+						<input id="bg-opacity-input" type="range" min="0" max="1" step="0.01" value="0.82" />
+					</label>
 					<label class="setting-row checkbox-row">
 						<input id="gps-enabled-input" type="checkbox" checked />
 						<span>Enable GTA V GPS Waypoint</span>
 					</label>
-					<div class="setting-row stacked">
-						<span>Waypoint Coordinates</span>
-						<div class="coords-row">
-							<input id="gps-x-input" type="number" step="0.01" placeholder="X" value="224.54" />
-							<input id="gps-y-input" type="number" step="0.01" placeholder="Y" value="-895.21" />
-						</div>
-					</div>
+					<div class="setting-note">Uses current mission marker data from the active Pizza Delivery job.</div>
 					<button id="apply-gps-btn" class="btn btn-primary">Set Waypoint</button>
 				</div>
 			</aside>
 
 			<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+			<div id="panel-resize-handle" class="panel-resize-handle" title="Resize panel"></div>
+
+			<aside id="debug-panel" class="debug-panel hidden" aria-label="Message debug log">
+				<div class="debug-header">
+					<div class="debug-title-block">
+						<span class="debug-title">Debug Console</span>
+						<span class="debug-subtitle">Bridge events, menu state, and raw server diagnostics</span>
+					</div>
+					<div class="debug-actions">
+						<button id="debug-copy-btn" class="debug-tool-btn" aria-label="Copy all log entries">Copy</button>
+						<button id="debug-clear-btn" class="debug-tool-btn" aria-label="Clear log">Clear</button>
+						<button id="debug-close-btn" class="debug-tool-btn debug-tool-btn-danger" aria-label="Close debug log">Close</button>
+					</div>
+				</div>
+				<div id="debug-toolbar" class="debug-toolbar">
+					<div class="debug-toolbar-group">
+						<label class="debug-toolbar-label" for="debug-filter-select">Filter</label>
+						<select id="debug-filter-select" class="debug-select" aria-label="Debug filter mode">
+							<option value="focused">Focused</option>
+							<option value="server">Server Events + Actions</option>
+							<option value="all">All Messages</option>
+						</select>
+					</div>
+					<label class="debug-checkbox-row" for="debug-verbose-toggle">
+						<input id="debug-verbose-toggle" type="checkbox" />
+						<span>Include verbose raw payloads</span>
+					</label>
+				</div>
+				<div id="debug-log" class="debug-log"></div>
+			</aside>
 		</div>
 
 		<script src="script.js"></script>
