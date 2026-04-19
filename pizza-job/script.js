@@ -13,9 +13,29 @@ const SETTINGS_STORAGE_KEY = "pizzaJobSettings";
 const VERBOSE_RAW_DEBUG_STORAGE_KEY = "pizzaJobVerboseRawDebug";
 const DEBUG_FILTER_STORAGE_KEY = "pizzaJobDebugFilterMode";
 const INTEGRATION_POLL_INTERVAL_MS = 1500;
+const INTEGRATION_IDLE_POLL_INTERVAL_MS = 5000;
+const INTEGRATION_HIDDEN_POLL_INTERVAL_MS = 9000;
+const INTEGRATION_USER_INACTIVE_POLL_INTERVAL_MS = 12000;
+const NUI_IDLE_POLL_INTERVAL_MS = 6000;
+const NUI_HIDDEN_POLL_INTERVAL_MS = 10000;
+const USER_ACTIVITY_TIMEOUT_MS = 120000;
 const VEHICLE_TRUNK_REFRESH_COOLDOWN_MS = 800;
 const TYCOON_OPEN_TRUNK_COMMANDS = ["rm_trunk", "rm_cabtrunk"];
-const PIZZA_DELIVERY_JOB_NAME = "Pizza Delivery";
+const DEBUG_PIN_XOR_KEY = 0x53;
+const DEBUG_PIN_OBFUSCATED = [106, 97, 101, 98, 106];
+const PIZZA_DELIVERY_JOB_NAME = "pizza delivery";
+const MARKER_DATA_KEYS = [
+	"waypoint",
+	"waypoint_x",
+	"waypoint_y",
+	"marker_x",
+	"marker_y",
+	"mission_x",
+	"mission_y",
+	"missionMarker",
+	"yellowMarker",
+	"marker"
+];
 
 const TRUNK_ITEM_KEY_ALIASES = {
 	Pizza: ["Pizza", "pizza", "pizza_slice"],
@@ -54,6 +74,222 @@ const TRACKED_ITEM_WEIGHTS_KG = {
 	Soda: 5.0
 };
 
+const UI_THEME_PRESETS = {
+	midnight: {
+		label: "Midnight Garage",
+		bgRgb: [12, 16, 22],
+		surfaceRgb: [24, 30, 38],
+		overlayRgb: [17, 22, 29],
+		cardRgb: [24, 30, 38],
+		headerRgb: [26, 33, 42],
+		footerRgb: [17, 22, 29],
+		rowRgb: [30, 36, 43],
+		line: "#2d3742",
+		text: "#ecf2f8",
+		muted: "#a4b3c2",
+		accent: "#ff6b2c",
+		accent2: "#f9a826",
+		accentInk: "#1c110a",
+		danger: "#ff4d6d",
+		ok: "#2dc78b",
+		btnSecondaryBg: "#27303a",
+		btnSecondaryBorder: "#384452",
+		btnSecondaryText: "#ecf2f8",
+		itemRowBorder: "#36404b",
+		pillBorder: "#435062"
+	},
+	pizza: {
+		label: "Pizza Parlor",
+		bgRgb: [30, 11, 8],
+		surfaceRgb: [56, 26, 18],
+		overlayRgb: [44, 20, 14],
+		cardRgb: [57, 28, 19],
+		headerRgb: [74, 36, 23],
+		footerRgb: [42, 20, 13],
+		rowRgb: [64, 32, 22],
+		line: "#8b4528",
+		text: "#fff2dd",
+		muted: "#f2c89a",
+		accent: "#f97316",
+		accent2: "#facc15",
+		accentInk: "#2f1609",
+		danger: "#ff6363",
+		ok: "#83d268",
+		btnSecondaryBg: "#4f2619",
+		btnSecondaryBorder: "#8b4528",
+		btnSecondaryText: "#fff2dd",
+		itemRowBorder: "#8a4b2e",
+		pillBorder: "#a85b34"
+	},
+	cola: {
+		label: "Cola Classic",
+		bgRgb: [24, 4, 6],
+		surfaceRgb: [58, 10, 14],
+		overlayRgb: [43, 8, 11],
+		cardRgb: [61, 11, 15],
+		headerRgb: [79, 13, 19],
+		footerRgb: [48, 9, 12],
+		rowRgb: [72, 13, 17],
+		line: "#b31b25",
+		text: "#fff7f7",
+		muted: "#ffd2d5",
+		accent: "#e11d2e",
+		accent2: "#ffffff",
+		accentInk: "#3a0508",
+		danger: "#ff6474",
+		ok: "#65dca0",
+		btnSecondaryBg: "#5d1218",
+		btnSecondaryBorder: "#b31b25",
+		btnSecondaryText: "#fff7f7",
+		itemRowBorder: "#a71a24",
+		pillBorder: "#cb2632"
+	},
+	pepsi: {
+		label: "Pepsi Pulse",
+		bgRgb: [5, 14, 38],
+		surfaceRgb: [10, 28, 68],
+		overlayRgb: [8, 22, 54],
+		cardRgb: [11, 29, 70],
+		headerRgb: [15, 39, 91],
+		footerRgb: [8, 24, 57],
+		rowRgb: [14, 34, 79],
+		line: "#1f4ba3",
+		text: "#eef5ff",
+		muted: "#b8ccff",
+		accent: "#0063d1",
+		accent2: "#ed1c24",
+		accentInk: "#f5f9ff",
+		danger: "#ff5f7a",
+		ok: "#5bd4ff",
+		btnSecondaryBg: "#102a62",
+		btnSecondaryBorder: "#2d5dbf",
+		btnSecondaryText: "#eef5ff",
+		itemRowBorder: "#2a57b0",
+		pillBorder: "#3567c7"
+	},
+	retro: {
+		label: "Retro Arcade",
+		bgRgb: [21, 14, 34],
+		surfaceRgb: [39, 24, 60],
+		overlayRgb: [30, 18, 48],
+		cardRgb: [41, 24, 63],
+		headerRgb: [54, 30, 80],
+		footerRgb: [31, 19, 49],
+		rowRgb: [46, 28, 69],
+		line: "#6b4ca0",
+		text: "#f8f1ff",
+		muted: "#d8bfff",
+		accent: "#ff4fa3",
+		accent2: "#40e0d0",
+		accentInk: "#230a2a",
+		danger: "#ff6f7e",
+		ok: "#62f6c9",
+		btnSecondaryBg: "#3d2760",
+		btnSecondaryBorder: "#7a57b5",
+		btnSecondaryText: "#f8f1ff",
+		itemRowBorder: "#7252aa",
+		pillBorder: "#8d67ca"
+	},
+	neon: {
+		label: "Neon Delivery",
+		bgRgb: [6, 24, 20],
+		surfaceRgb: [12, 42, 35],
+		overlayRgb: [10, 33, 28],
+		cardRgb: [13, 44, 37],
+		headerRgb: [16, 58, 48],
+		footerRgb: [10, 34, 28],
+		rowRgb: [15, 50, 41],
+		line: "#1d7f69",
+		text: "#e8fff7",
+		muted: "#a7f0da",
+		accent: "#00e58f",
+		accent2: "#00d4ff",
+		accentInk: "#032219",
+		danger: "#ff5b81",
+		ok: "#58ffd9",
+		btnSecondaryBg: "#12463a",
+		btnSecondaryBorder: "#27937a",
+		btnSecondaryText: "#e8fff7",
+		itemRowBorder: "#27866f",
+		pillBorder: "#31a789"
+	},
+	diner: {
+		label: "Vintage Diner",
+		bgRgb: [23, 30, 45],
+		surfaceRgb: [43, 57, 80],
+		overlayRgb: [36, 48, 69],
+		cardRgb: [45, 58, 83],
+		headerRgb: [57, 73, 103],
+		footerRgb: [35, 47, 66],
+		rowRgb: [52, 66, 92],
+		line: "#6a7ea3",
+		text: "#f5f8ff",
+		muted: "#ced9ef",
+		accent: "#f05454",
+		accent2: "#ffd166",
+		accentInk: "#2c1f16",
+		danger: "#ff6f7a",
+		ok: "#7be0ad",
+		btnSecondaryBg: "#405277",
+		btnSecondaryBorder: "#7084ad",
+		btnSecondaryText: "#f5f8ff",
+		itemRowBorder: "#7183aa",
+		pillBorder: "#8296be"
+	}
+};
+
+const UI_THEME_ALERT_PRESETS = {
+	midnight: {
+		rowRgb: [255, 77, 109],
+		rowAlphaStrong: 0.32,
+		rowAlphaSoft: 0.1,
+		pillBorder: "rgba(255, 114, 142, 0.72)",
+		pillText: "#ffadbf"
+	},
+	pizza: {
+		rowRgb: [255, 88, 88],
+		rowAlphaStrong: 0.34,
+		rowAlphaSoft: 0.11,
+		pillBorder: "rgba(255, 120, 96, 0.78)",
+		pillText: "#ffd2bf"
+	},
+	cola: {
+		rowRgb: [255, 92, 104],
+		rowAlphaStrong: 0.36,
+		rowAlphaSoft: 0.12,
+		pillBorder: "rgba(255, 118, 132, 0.8)",
+		pillText: "#ffd9df"
+	},
+	pepsi: {
+		rowRgb: [255, 104, 128],
+		rowAlphaStrong: 0.38,
+		rowAlphaSoft: 0.13,
+		pillBorder: "rgba(255, 134, 156, 0.82)",
+		pillText: "#ffe1e8"
+	},
+	retro: {
+		rowRgb: [255, 107, 171],
+		rowAlphaStrong: 0.36,
+		rowAlphaSoft: 0.13,
+		pillBorder: "rgba(255, 138, 189, 0.84)",
+		pillText: "#ffd9ef"
+	},
+	neon: {
+		rowRgb: [255, 96, 150],
+		rowAlphaStrong: 0.38,
+		rowAlphaSoft: 0.14,
+		pillBorder: "rgba(255, 128, 176, 0.86)",
+		pillText: "#ffd5e8"
+	},
+	diner: {
+		rowRgb: [255, 102, 124],
+		rowAlphaStrong: 0.35,
+		rowAlphaSoft: 0.12,
+		pillBorder: "rgba(255, 130, 150, 0.78)",
+		pillText: "#ffd8e2"
+	}
+};
+
 function generateRandomOrderId() {
 	return Math.floor(Math.random() * 9000) + 1000;
 }
@@ -61,6 +297,13 @@ function generateRandomOrderId() {
 function createEmptyTrackedItemTable() {
 	return TRACKED_ITEMS.reduce((table, item) => {
 		table[item] = 0;
+		return table;
+	}, {});
+}
+
+function createDefaultThresholdTable(defaultValue = 5) {
+	return TRACKED_ITEMS.reduce((table, item) => {
+		table[item] = defaultValue;
 		return table;
 	}, {});
 }
@@ -87,7 +330,12 @@ const state = {
 	trunk: createEmptyTrackedItemTable(),
 	inventory: createEmptyTrackedItemTable(),
 	settings: {
-		lowThreshold: 5,
+		lowThresholdByItem: createDefaultThresholdTable(5),
+		theme: "midnight",
+		fontScale: 1,
+		settingsDetached: true,
+		settingsPanelX: null,
+		settingsPanelY: null,
 		bgOpacity: 0.82,
 		gpsEnabled: true,
 		gpsX: null,
@@ -95,6 +343,7 @@ const state = {
 	},
 	playerJobName: "",
 	isPizzaDeliveryActive: false,
+	lastUserActivityTime: 0,
 	orderSync: {
 		source: "Local",
 		at: null
@@ -111,6 +360,7 @@ const refs = {
 	orderList: document.getElementById("order-list"),
 	trunkList: document.getElementById("trunk-list"),
 	trunkAlertCount: document.getElementById("trunk-alert-count"),
+	takeOrderBtn: document.getElementById("take-order-btn"),
 	clearOrderBtn: document.getElementById("clear-order-btn"),
 	settingsToggleBtn: document.getElementById("settings-toggle-btn"),
 	resetPanelBtn: document.getElementById("reset-panel-btn"),
@@ -123,14 +373,27 @@ const refs = {
 	debugToolbar: document.getElementById("debug-toolbar"),
 	debugFilterSelect: document.getElementById("debug-filter-select"),
 	debugVerboseToggle: document.getElementById("debug-verbose-toggle"),
+	debugPinPanel: document.getElementById("debug-pin-panel"),
+	debugPinInput: document.getElementById("debug-pin-input"),
+	debugPinSubmitBtn: document.getElementById("debug-pin-submit-btn"),
+	debugPinCancelBtn: document.getElementById("debug-pin-cancel-btn"),
 	settingsPanel: document.getElementById("settings-panel"),
+	settingsHeader: document.querySelector("#settings-panel .settings-header"),
+	settingsDetachBtn: document.getElementById("settings-detach-btn"),
 	settingsCloseBtn: document.getElementById("settings-close-btn"),
-	lowThresholdInput: document.getElementById("low-threshold-input"),
+	settingsDetachedInput: document.getElementById("settings-detached-input"),
+	lowThresholdList: document.getElementById("low-threshold-list"),
+	themeSelect: document.getElementById("theme-select"),
+	fontSizeInput: document.getElementById("font-size-input"),
+	fontSizeValue: document.getElementById("font-size-value"),
 	bgOpacityInput: document.getElementById("bg-opacity-input"),
 	bgOpacityValue: document.getElementById("bg-opacity-value"),
-	gpsEnabledInput: document.getElementById("gps-enabled-input"),
-	applyGpsBtn: document.getElementById("apply-gps-btn"),
-	toast: document.getElementById("toast")
+	toast: document.getElementById("toast"),
+	floatingTooltip: document.getElementById("floating-tooltip"),
+	resetConfirmBackdrop: document.getElementById("reset-confirm-backdrop"),
+	resetConfirmDialog: document.getElementById("reset-confirm-dialog"),
+	resetConfirmCancelBtn: document.getElementById("reset-confirm-cancel-btn"),
+	resetConfirmOkBtn: document.getElementById("reset-confirm-ok-btn")
 };
 
 const panelState = {
@@ -152,19 +415,102 @@ const debugPanelState = {
 	startTop: 0
 };
 
+const settingsPanelState = {
+	dragging: false,
+	startX: 0,
+	startY: 0,
+	startLeft: 0,
+	startTop: 0
+};
+
 let lastVehicleTrunkRefreshAt = 0;
 let lastInVehicleState = null;
 let lastTycoonPromptSeenAt = 0;
 let lastFocusedTycoonPayloadSignature = "";
+let lastCircleTriggerValue = null;
+let hasSeenCircleTriggerValue = false;
+let lastAutoMissionMarkerSignature = "";
+let lastAutoMissionMarkerAttemptAt = 0;
+let lastChestSelectedDebugSignature = "";
+let lastMarkerProbeSignature = "";
+let lastWaypointFeedOnlyDebugSignature = "";
+let isDebugPanelUnlocked = false;
+let shouldOpenDebugAfterPin = false;
+let activeTooltipTarget = null;
+let renderFrameHandle = 0;
+let renderQueued = false;
+let passivePollTimer = 0;
+let nuiPollTimer = 0;
+
+function readDebugPin() {
+	return DEBUG_PIN_OBFUSCATED.map((value) => String.fromCharCode(value ^ DEBUG_PIN_XOR_KEY)).join("");
+}
+
+function setDebugPinPanelOpen(isOpen) {
+	if (!refs.debugPinPanel) {
+		return;
+	}
+
+	refs.debugPinPanel.classList.toggle("hidden", !isOpen);
+	if (!isOpen) {
+		shouldOpenDebugAfterPin = false;
+	}
+	if (isOpen && refs.debugPinInput) {
+		refs.debugPinInput.value = "";
+		window.setTimeout(() => {
+			refs.debugPinInput.focus();
+		}, 0);
+	}
+}
+
+function requestDebugPanelAccess() {
+	if (isDebugPanelUnlocked) {
+		setDebugPanelOpen(refs.debugPanel.classList.contains("hidden"));
+		return;
+	}
+
+	if (!refs.debugPinPanel || !refs.debugPinInput || !refs.debugPinSubmitBtn || !refs.debugPinCancelBtn) {
+		showToast("Debug PIN window failed to load. Reload app.", 2400);
+		return;
+	}
+
+	shouldOpenDebugAfterPin = true;
+	setDebugPinPanelOpen(true);
+}
+
+function submitDebugPin() {
+	const attempt = refs.debugPinInput ? refs.debugPinInput.value.trim() : "";
+	if (attempt === readDebugPin()) {
+		isDebugPanelUnlocked = true;
+		setDebugPinPanelOpen(false);
+		showToast("Debug access granted.", 1800);
+		if (shouldOpenDebugAfterPin) {
+			setDebugPanelOpen(true);
+		}
+		shouldOpenDebugAfterPin = false;
+		return;
+	}
+
+	showToast("Invalid PIN.", 1800);
+	if (refs.debugPinInput) {
+		refs.debugPinInput.value = "";
+		refs.debugPinInput.focus();
+	}
+}
 
 function normalizeJobName(jobName) {
-	return typeof jobName === "string" ? jobName.trim() : "";
+	return typeof jobName === "string" ? jobName.trim().toLowerCase() : "";
 }
 
 function setPizzaJobAppVisible(isVisible) {
 	refs.app.classList.toggle("hidden", !isVisible);
 	if (!isVisible) {
-		refs.settingsPanel.classList.add("hidden");
+		if (refs.settingsPanel) {
+			refs.settingsPanel.classList.add("hidden");
+		}
+		setResetConfirmOpen(false);
+		hideFloatingTooltip();
+		setDebugPinPanelOpen(false);
 		setDebugPanelOpen(false);
 	}
 }
@@ -174,6 +520,15 @@ function requestPassiveTycoonState(reason = "job-state") {
 		{
 			type: "getData",
 			reason
+		},
+		"*"
+	);
+
+	window.parent.postMessage(
+		{
+			type: "getNamedData",
+			keys: MARKER_DATA_KEYS,
+			reason: `${reason}-markers`
 		},
 		"*"
 	);
@@ -212,7 +567,10 @@ function updatePlayerJobStateFromPayload(payload) {
 		return;
 	}
 
-	const nextJobName = normalizeJobName(payload.job_name) || normalizeJobName(payload.job_title);
+	const nextJobName =
+		normalizeJobName(payload.job_name) ||
+		normalizeJobName(payload.job_title) ||
+		normalizeJobName(payload.job);
 	if (nextJobName) {
 		setPlayerJobState(nextJobName);
 	}
@@ -378,6 +736,106 @@ function showToast(message, timeoutMs = 2400) {
 	}, timeoutMs);
 }
 
+function setResetConfirmOpen(isOpen) {
+	if (!refs.resetConfirmBackdrop) {
+		return;
+	}
+
+	refs.resetConfirmBackdrop.classList.toggle("hidden", !isOpen);
+	refs.resetConfirmBackdrop.setAttribute("aria-hidden", isOpen ? "false" : "true");
+
+	if (isOpen && refs.resetConfirmOkBtn) {
+		window.setTimeout(() => {
+			refs.resetConfirmOkBtn.focus();
+		}, 0);
+	}
+}
+
+function getTooltipTextForElement(element) {
+	if (!(element instanceof HTMLElement)) {
+		return "";
+	}
+
+	const dataTooltip = element.getAttribute("data-tooltip");
+	if (dataTooltip && dataTooltip.trim()) {
+		return dataTooltip.trim();
+	}
+
+	const ariaLabel = element.getAttribute("aria-label");
+	if (ariaLabel && ariaLabel.trim()) {
+		return ariaLabel.trim();
+	}
+
+	const nativeTitle = element.getAttribute("title");
+	if (nativeTitle && nativeTitle.trim()) {
+		return nativeTitle.trim();
+	}
+
+	const text = element.textContent || "";
+	return text.trim();
+}
+
+function positionFloatingTooltip(target) {
+	if (!refs.floatingTooltip || !(target instanceof HTMLElement)) {
+		return;
+	}
+
+	const rect = target.getBoundingClientRect();
+	const tooltipRect = refs.floatingTooltip.getBoundingClientRect();
+	const gap = 8;
+	let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+	left = clamp(left, 8, window.innerWidth - tooltipRect.width - 8);
+
+	let top = rect.top - tooltipRect.height - gap;
+	if (top < 8) {
+		top = rect.bottom + gap;
+	}
+
+	refs.floatingTooltip.style.left = `${left}px`;
+	refs.floatingTooltip.style.top = `${top}px`;
+}
+
+function showFloatingTooltip(target) {
+	if (!refs.floatingTooltip || !(target instanceof HTMLElement)) {
+		return;
+	}
+
+	const text = getTooltipTextForElement(target);
+	if (!text) {
+		hideFloatingTooltip();
+		return;
+	}
+
+	activeTooltipTarget = target;
+	refs.floatingTooltip.textContent = text;
+	refs.floatingTooltip.classList.remove("hidden");
+	refs.floatingTooltip.setAttribute("aria-hidden", "false");
+	positionFloatingTooltip(target);
+}
+
+function hideFloatingTooltip() {
+	activeTooltipTarget = null;
+	if (!refs.floatingTooltip) {
+		return;
+	}
+
+	refs.floatingTooltip.classList.add("hidden");
+	refs.floatingTooltip.setAttribute("aria-hidden", "true");
+}
+
+function normalizeButtonTooltipAttributes() {
+	for (const button of document.querySelectorAll("button")) {
+		const title = button.getAttribute("title");
+		if (title && !button.getAttribute("data-tooltip")) {
+			button.setAttribute("data-tooltip", title);
+		}
+
+		if (title) {
+			button.removeAttribute("title");
+		}
+	}
+}
+
 const DEBUG_MAX_ENTRIES = 1000;
 
 function isVerboseRawDebugEnabled() {
@@ -471,6 +929,15 @@ function isRelevantFocusedTycoonPayload(data) {
 		"trunkWeight",
 		"trunkCapacity",
 		"weight",
+		"marker",
+		"missionMarker",
+		"yellowMarker",
+		"marker_x",
+		"marker_y",
+		"mission_x",
+		"mission_y",
+		"waypoint_x",
+		"waypoint_y",
 		"action",
 		"event"
 	]);
@@ -496,7 +963,16 @@ function getFocusedTycoonPayloadSignature(data) {
 		trunkWeight: data.trunkWeight,
 		trunkCapacity: data.trunkCapacity,
 		weight: data.weight,
-		inventory: data.inventory
+		inventory: data.inventory,
+		marker: data.marker,
+		missionMarker: data.missionMarker,
+		yellowMarker: data.yellowMarker,
+		marker_x: data.marker_x,
+		marker_y: data.marker_y,
+		mission_x: data.mission_x,
+		mission_y: data.mission_y,
+		waypoint_x: data.waypoint_x,
+		waypoint_y: data.waypoint_y
 	};
 
 	for (const key of Object.keys(data).sort()) {
@@ -781,7 +1257,7 @@ function loadDebugPanelLayout() {
 			refs.debugVerboseToggle.checked = isVerboseRawDebugEnabled();
 		}
 		setDebugToolbarOpen(true);
-		refs.debugPanel.classList.toggle("hidden", parsed.open !== true);
+		refs.debugPanel.classList.toggle("hidden", true);
 
 		if (!isMobileLayout() && parsed.open === true) {
 			const defaultWidth = refs.debugPanel.offsetWidth || 680;
@@ -815,11 +1291,36 @@ function loadSettings() {
 
 	try {
 		const parsed = JSON.parse(raw);
-		if (typeof parsed.lowThreshold === "number") {
-			state.settings.lowThreshold = clamp(Math.round(parsed.lowThreshold), 1, 99);
+		if (parsed.lowThresholdByItem && typeof parsed.lowThresholdByItem === "object") {
+			const nextThresholds = createDefaultThresholdTable(5);
+			for (const item of TRACKED_ITEMS) {
+				const rawValue = Number(parsed.lowThresholdByItem[item]);
+				if (Number.isFinite(rawValue)) {
+					nextThresholds[item] = clamp(Math.round(rawValue), 1, 99);
+				}
+			}
+			state.settings.lowThresholdByItem = nextThresholds;
+		} else if (typeof parsed.lowThreshold === "number") {
+			const fallback = clamp(Math.round(parsed.lowThreshold), 1, 99);
+			state.settings.lowThresholdByItem = createDefaultThresholdTable(fallback);
 		}
 		if (typeof parsed.bgOpacity === "number") {
 			state.settings.bgOpacity = clamp(parsed.bgOpacity, 0, 1);
+		}
+		if (typeof parsed.theme === "string" && Object.hasOwn(UI_THEME_PRESETS, parsed.theme)) {
+			state.settings.theme = parsed.theme;
+		}
+		if (typeof parsed.fontScale === "number") {
+			state.settings.fontScale = clamp(parsed.fontScale, 0.85, 1.35);
+		}
+		if (typeof parsed.settingsDetached === "boolean") {
+			state.settings.settingsDetached = parsed.settingsDetached;
+		}
+		if (typeof parsed.settingsPanelX === "number") {
+			state.settings.settingsPanelX = parsed.settingsPanelX;
+		}
+		if (typeof parsed.settingsPanelY === "number") {
+			state.settings.settingsPanelY = parsed.settingsPanelY;
 		}
 		if (typeof parsed.gpsEnabled === "boolean") {
 			state.settings.gpsEnabled = parsed.gpsEnabled;
@@ -835,18 +1336,177 @@ function loadSettings() {
 	}
 }
 
+function getActiveThemePreset() {
+	return UI_THEME_PRESETS[state.settings.theme] || UI_THEME_PRESETS.midnight;
+}
+
+function getActiveThemeAlertPreset() {
+	return UI_THEME_ALERT_PRESETS[state.settings.theme] || UI_THEME_ALERT_PRESETS.midnight;
+}
+
+function applyThemePreset() {
+	const theme = getActiveThemePreset();
+	const alertTheme = getActiveThemeAlertPreset();
+	const root = document.documentElement;
+	root.style.setProperty("--line", theme.line);
+	root.style.setProperty("--text", theme.text);
+	root.style.setProperty("--muted", theme.muted);
+	root.style.setProperty("--accent", theme.accent);
+	root.style.setProperty("--accent-2", theme.accent2);
+	root.style.setProperty("--accent-ink", theme.accentInk);
+	root.style.setProperty("--danger", theme.danger);
+	root.style.setProperty("--ok", theme.ok);
+	root.style.setProperty("--btn-secondary-bg", theme.btnSecondaryBg);
+	root.style.setProperty("--btn-secondary-border", theme.btnSecondaryBorder);
+	root.style.setProperty("--btn-secondary-text", theme.btnSecondaryText);
+	root.style.setProperty("--item-row-border", theme.itemRowBorder);
+	root.style.setProperty("--pill-border", theme.pillBorder);
+	root.style.setProperty("--alert-row-rgb", alertTheme.rowRgb.join(", "));
+	root.style.setProperty("--alert-row-alpha-strong", String(alertTheme.rowAlphaStrong));
+	root.style.setProperty("--alert-row-alpha-soft", String(alertTheme.rowAlphaSoft));
+	root.style.setProperty("--pill-alert-border", alertTheme.pillBorder);
+	root.style.setProperty("--pill-alert-text", alertTheme.pillText);
+}
+
+function applyUIFontScale() {
+	const scale = clamp(state.settings.fontScale || 1, 0.85, 1.35);
+	document.documentElement.style.setProperty("--ui-font-scale", scale.toFixed(2));
+	if (refs.fontSizeValue) {
+		refs.fontSizeValue.textContent = `${Math.round(scale * 100)}%`;
+	}
+}
+
+function positionDetachedSettingsPanel(useSavedPosition = true) {
+	if (!refs.settingsPanel || !state.settings.settingsDetached) {
+		return;
+	}
+
+	const panelWidth = refs.settingsPanel.offsetWidth || 320;
+	const panelHeight = refs.settingsPanel.offsetHeight || 380;
+	const maxLeft = Math.max(8, window.innerWidth - panelWidth - 8);
+	const maxTop = Math.max(8, window.innerHeight - panelHeight - 8);
+
+	let nextLeft;
+	let nextTop;
+	if (
+		useSavedPosition &&
+		Number.isFinite(state.settings.settingsPanelX) &&
+		Number.isFinite(state.settings.settingsPanelY)
+	) {
+		nextLeft = clamp(state.settings.settingsPanelX, 8, maxLeft);
+		nextTop = clamp(state.settings.settingsPanelY, 8, maxTop);
+	} else {
+		const anchorLeft = refs.app.offsetLeft + refs.app.offsetWidth + 12;
+		nextLeft = clamp(anchorLeft, 8, maxLeft);
+		nextTop = clamp(refs.app.offsetTop + 32, 8, maxTop);
+	}
+
+	state.settings.settingsPanelX = nextLeft;
+	state.settings.settingsPanelY = nextTop;
+	refs.settingsPanel.style.left = `${nextLeft}px`;
+	refs.settingsPanel.style.top = `${nextTop}px`;
+	refs.settingsPanel.style.right = "auto";
+}
+
+function applySettingsPanelDetachMode(options = {}) {
+	const { keepSavedPosition = true } = options;
+	if (!refs.settingsPanel) {
+		return;
+	}
+
+	refs.settingsPanel.classList.toggle("settings-detached", state.settings.settingsDetached);
+	if (refs.settingsDetachedInput) {
+		refs.settingsDetachedInput.checked = state.settings.settingsDetached;
+	}
+	if (refs.settingsDetachBtn) {
+		refs.settingsDetachBtn.textContent = state.settings.settingsDetached ? "Dock" : "Pop Out";
+	}
+
+	if (state.settings.settingsDetached) {
+		positionDetachedSettingsPanel(keepSavedPosition);
+	} else {
+		refs.settingsPanel.style.left = "";
+		refs.settingsPanel.style.top = "";
+		refs.settingsPanel.style.right = "";
+	}
+}
+
+function setSettingsDetached(isDetached) {
+	state.settings.settingsDetached = Boolean(isDetached);
+	applySettingsPanelDetachMode({ keepSavedPosition: true });
+	saveSettings();
+}
+
+function renderLowThresholdInputs() {
+	if (!refs.lowThresholdList) {
+		return;
+	}
+
+	refs.lowThresholdList.innerHTML = "";
+	for (const item of TRACKED_ITEMS) {
+		const row = document.createElement("label");
+		row.className = "setting-row";
+		const thresholdValue = state.settings.lowThresholdByItem[item] ?? 5;
+		row.innerHTML = `
+			<span>${item}</span>
+			<input
+				type="number"
+				min="1"
+				max="99"
+				value="${thresholdValue}"
+				data-threshold-item="${item}"
+			/>
+		`;
+		refs.lowThresholdList.appendChild(row);
+	}
+}
+
 function applyWindowBackgroundOpacity() {
+	const theme = getActiveThemePreset();
 	const sliderOpacity = clamp(state.settings.bgOpacity, 0, 1);
-	// Use a non-linear curve so low-opacity values change more gradually.
-	const baseOpacity = clamp(Math.pow(sliderOpacity, 1.35), 0, 1);
+	const baseOpacity = sliderOpacity;
 	const surfaceOpacity = clamp(baseOpacity * 0.76, 0, 0.9);
 	const overlayOpacity = clamp(baseOpacity * 0.9, 0, 0.95);
 	const subtleOpacity = clamp(baseOpacity * 0.56, 0, 0.8);
+	const containerOpacity = clamp(0.2 + sliderOpacity * 0.8, 0.2, 1);
 
 	refs.app.style.setProperty("--window-bg-opacity", baseOpacity.toFixed(2));
 	refs.app.style.setProperty("--window-surface-opacity", surfaceOpacity.toFixed(2));
 	refs.app.style.setProperty("--window-overlay-opacity", overlayOpacity.toFixed(2));
 	refs.app.style.setProperty("--window-subtle-opacity", subtleOpacity.toFixed(2));
+	refs.app.style.opacity = containerOpacity.toFixed(2);
+
+	// Some embedded webviews do not reliably recompute complex alpha expressions.
+	// Apply critical surface opacity inline so low values are visibly transparent.
+	refs.app.style.backgroundColor = `rgba(${theme.bgRgb.join(",")}, ${baseOpacity.toFixed(2)})`;
+
+	if (refs.settingsPanel) {
+		refs.settingsPanel.style.backgroundColor = `rgba(${theme.overlayRgb.join(",")}, ${(overlayOpacity * 0.9).toFixed(2)})`;
+	}
+
+	if (refs.debugPanel) {
+		refs.debugPanel.style.backgroundColor = `rgba(${theme.overlayRgb.join(",")}, ${(overlayOpacity * 0.95).toFixed(2)})`;
+	}
+
+	if (refs.debugPinPanel) {
+		refs.debugPinPanel.style.backgroundColor = `rgba(${theme.overlayRgb.join(",")}, ${(overlayOpacity * 0.94).toFixed(2)})`;
+	}
+
+	for (const card of document.querySelectorAll(".card")) {
+		card.style.backgroundColor = `rgba(${theme.cardRgb.join(",")}, ${(surfaceOpacity * 0.45).toFixed(2)})`;
+	}
+
+	for (const header of document.querySelectorAll(".card-header")) {
+		header.style.backgroundColor = `rgba(${theme.headerRgb.join(",")}, ${(surfaceOpacity * 0.42).toFixed(2)})`;
+	}
+
+	for (const footer of document.querySelectorAll(".card-footer")) {
+		footer.style.backgroundColor = `rgba(${theme.footerRgb.join(",")}, ${(overlayOpacity * 0.7).toFixed(2)})`;
+	}
+
+	for (const row of document.querySelectorAll(".item-row")) {
+		row.style.backgroundColor = `rgba(${theme.rowRgb.join(",")}, ${(overlayOpacity * 0.6).toFixed(2)})`;
+	}
 }
 
 function getOrderCompletionState() {
@@ -864,6 +1524,7 @@ function getOrderCompletionState() {
 function clearWaypointData() {
 	state.settings.gpsX = null;
 	state.settings.gpsY = null;
+	lastAutoMissionMarkerSignature = "";
 
 	const payload = { action: "clearWaypoint" };
 	window.postMessage(payload, "*");
@@ -1055,10 +1716,30 @@ function extractTycoonChestInventory(data) {
 		return null;
 	}
 
-	for (const [key, value] of Object.entries(data)) {
-		if (!key.startsWith("chest_")) {
-			continue;
+	const chestEntries = Object.entries(data).filter(([key]) => key.startsWith("chest_"));
+	if (chestEntries.length === 0) {
+		return null;
+	}
+
+	const activeChestId = typeof data.chest === "string" && data.chest !== "none" ? data.chest : "";
+	const isLikelyVehicleChestKey = (key) => {
+		const normalized = key.toLowerCase();
+		return normalized.includes("veh_") || normalized.includes("_veh") || normalized.includes("_car_");
+	};
+
+	chestEntries.sort(([leftKey], [rightKey]) => {
+		const leftIsActive = activeChestId && leftKey === `chest_${activeChestId}` ? 1 : 0;
+		const rightIsActive = activeChestId && rightKey === `chest_${activeChestId}` ? 1 : 0;
+		if (leftIsActive !== rightIsActive) {
+			return rightIsActive - leftIsActive;
 		}
+
+		const leftIsVehicle = isLikelyVehicleChestKey(leftKey) ? 1 : 0;
+		const rightIsVehicle = isLikelyVehicleChestKey(rightKey) ? 1 : 0;
+		return rightIsVehicle - leftIsVehicle;
+	});
+
+	for (const [key, value] of chestEntries) {
 		const parsed = tryParseJsonObject(value);
 		if (!parsed || typeof parsed !== "object") {
 			continue;
@@ -1077,6 +1758,7 @@ function extractTycoonChestInventory(data) {
 			return {
 				inventory: normalized,
 				chestId: key.slice("chest_".length),
+				chestKey: key,
 				layoutOrder
 			};
 		}
@@ -1986,6 +2668,30 @@ function getEventNameFromAny(data) {
 	return "";
 }
 
+function hasCircleTrigger(data) {
+	if (!data || typeof data !== "object") {
+		return false;
+	}
+
+	if (!("trigger_circle" in data)) {
+		return false;
+	}
+
+	const nextValue = data.trigger_circle;
+	if (!hasSeenCircleTriggerValue) {
+		hasSeenCircleTriggerValue = true;
+		lastCircleTriggerValue = nextValue;
+		return false;
+	}
+
+	if (nextValue === lastCircleTriggerValue) {
+		return false;
+	}
+
+	lastCircleTriggerValue = nextValue;
+	return true;
+}
+
 function shouldRefreshFromVehicleStateChange(nextState) {
 	if (typeof nextState !== "boolean") {
 		return false;
@@ -2016,16 +2722,15 @@ function applyTrunkInventoryFromVehicle(payload, sourceLabel = "vehicle trunk") 
 
 	state.trunk = normalized;
 	renderTrunk();
-	showToast(`Trunk Inventory synced from ${sourceLabel}.`, 1800);
 }
 
-function refreshVehicleTrunkInventory(reason) {
+function refreshVehicleTrunkInventory(reason, force = false) {
 	if (!state.isPizzaDeliveryActive) {
 		return;
 	}
 
 	const now = Date.now();
-	if (now - lastVehicleTrunkRefreshAt < VEHICLE_TRUNK_REFRESH_COOLDOWN_MS) {
+	if (!force && now - lastVehicleTrunkRefreshAt < VEHICLE_TRUNK_REFRESH_COOLDOWN_MS) {
 		return;
 	}
 	lastVehicleTrunkRefreshAt = now;
@@ -2178,8 +2883,89 @@ function updateMissionMarker(markerPayload) {
 
 	state.settings.gpsX = x;
 	state.settings.gpsY = y;
+	const markerSignature = `${x.toFixed(2)},${y.toFixed(2)}`;
+	const waypointActive = markerPayload.waypoint === true;
+	const markerSource = typeof markerPayload.source === "string" ? markerPayload.source : "unknown";
+	if (markerSignature !== lastAutoMissionMarkerSignature) {
+		debugLogMessage({
+			type: "pizza-job-debug",
+			stage: "mission-marker-detected",
+			x,
+			y,
+			gpsEnabled: state.settings.gpsEnabled,
+			source: markerSource,
+			waypointActive
+		});
+	}
+	if (state.settings.gpsEnabled) {
+		const now = Date.now();
+		const shouldRetrySameMarker = markerSignature === lastAutoMissionMarkerSignature && !waypointActive;
+		const canRetryNow = now - lastAutoMissionMarkerAttemptAt >= 1800;
+		if ((markerSignature !== lastAutoMissionMarkerSignature || shouldRetrySameMarker) && canRetryNow) {
+			lastAutoMissionMarkerAttemptAt = now;
+			lastAutoMissionMarkerSignature = markerSignature;
+			debugLogMessage({
+				type: "pizza-job-debug",
+				stage: "mission-marker-apply-gps",
+				x,
+				y,
+				waypointActive,
+				source: markerSource
+			});
+			setWaypoint(x, y);
+		}
+	}
 	saveSettings();
 	render();
+}
+
+function extractMissionMarkerFromPayload(payload) {
+	if (!payload || typeof payload !== "object") {
+		return null;
+	}
+
+	const candidateMarkers = [payload.marker, payload.missionMarker, payload.yellowMarker].filter(
+		(entry) => entry && typeof entry === "object"
+	);
+
+	for (const candidate of candidateMarkers) {
+		const x = Number(candidate.x);
+		const y = Number(candidate.y);
+		if (Number.isFinite(x) && Number.isFinite(y)) {
+			return { x, y };
+		}
+	}
+
+	const missionX = Number(payload.mission_x ?? payload.marker_x);
+	const missionY = Number(payload.mission_y ?? payload.marker_y);
+	if (Number.isFinite(missionX) && Number.isFinite(missionY)) {
+		return { x: missionX, y: missionY, waypoint: payload.waypoint === true, source: "mission-fields" };
+	}
+
+	if (payload.action === "missionMarkerUpdate" || payload.action === "yellowMarkerUpdate") {
+		const x = Number(payload.x);
+		const y = Number(payload.y);
+		if (Number.isFinite(x) && Number.isFinite(y)) {
+			return { x, y, waypoint: payload.waypoint === true, source: "action-marker-update" };
+		}
+	}
+
+	return null;
+}
+
+function getMarkerProbeSnapshot(payload) {
+	if (!payload || typeof payload !== "object") {
+		return null;
+	}
+
+	const snapshot = {};
+	for (const key of MARKER_DATA_KEYS) {
+		if (key in payload) {
+			snapshot[key] = payload[key];
+		}
+	}
+
+	return Object.keys(snapshot).length > 0 ? snapshot : null;
 }
 
 function handleIncomingMarkerPayload(payload) {
@@ -2187,9 +2973,27 @@ function handleIncomingMarkerPayload(payload) {
 		return false;
 	}
 
-	if ((payload.action === "missionMarkerUpdate" || payload.action === "yellowMarkerUpdate") && payload.marker) {
-		updateMissionMarker(payload.marker);
+	const marker = extractMissionMarkerFromPayload(payload);
+	if (marker) {
+		updateMissionMarker(marker);
 		return true;
+	}
+
+	const waypointX = Number(payload.waypoint_x);
+	const waypointY = Number(payload.waypoint_y);
+	if (Number.isFinite(waypointX) && Number.isFinite(waypointY)) {
+		const signature = `${waypointX.toFixed(2)},${waypointY.toFixed(2)},${payload.waypoint === true}`;
+		if (signature !== lastWaypointFeedOnlyDebugSignature) {
+			lastWaypointFeedOnlyDebugSignature = signature;
+			debugLogMessage({
+				type: "pizza-job-debug",
+				stage: "marker-waypoint-feed-only",
+				note: "Mission marker fields not present; waypoint feed appears generic.",
+				waypoint: payload.waypoint === true,
+				waypoint_x: waypointX,
+				waypoint_y: waypointY
+			});
+		}
 	}
 
 	return false;
@@ -2321,6 +3125,24 @@ function startDebugPanelDrag(event) {
 	debugPanelState.startTop = refs.debugPanel.offsetTop;
 }
 
+function startSettingsPanelDrag(event) {
+	if (isMobileLayout() || !refs.settingsPanel || !state.settings.settingsDetached) {
+		return;
+	}
+
+	const target = event.target;
+	if (target instanceof HTMLElement && target.closest("button,input,select,label")) {
+		return;
+	}
+
+	event.preventDefault();
+	settingsPanelState.dragging = true;
+	settingsPanelState.startX = event.clientX;
+	settingsPanelState.startY = event.clientY;
+	settingsPanelState.startLeft = refs.settingsPanel.offsetLeft;
+	settingsPanelState.startTop = refs.settingsPanel.offsetTop;
+}
+
 function onPointerMove(event) {
 	if (panelState.dragging) {
 		const nextLeft = panelState.startLeft + (event.clientX - panelState.startX);
@@ -2354,19 +3176,38 @@ function onPointerMove(event) {
 		refs.debugPanel.style.left = `${clamp(nextLeft, 0, maxLeft)}px`;
 		refs.debugPanel.style.top = `${clamp(nextTop, 0, maxTop)}px`;
 	}
+
+	if (settingsPanelState.dragging && refs.settingsPanel && state.settings.settingsDetached) {
+		const nextLeft = settingsPanelState.startLeft + (event.clientX - settingsPanelState.startX);
+		const nextTop = settingsPanelState.startTop + (event.clientY - settingsPanelState.startY);
+		const maxLeft = Math.max(8, window.innerWidth - refs.settingsPanel.offsetWidth - 8);
+		const maxTop = Math.max(8, window.innerHeight - refs.settingsPanel.offsetHeight - 8);
+		const clampedLeft = clamp(nextLeft, 8, maxLeft);
+		const clampedTop = clamp(nextTop, 8, maxTop);
+
+		refs.settingsPanel.style.left = `${clampedLeft}px`;
+		refs.settingsPanel.style.top = `${clampedTop}px`;
+		state.settings.settingsPanelX = clampedLeft;
+		state.settings.settingsPanelY = clampedTop;
+	}
 }
 
 function stopPointerAction() {
 	const changed = panelState.dragging || panelState.resizing;
 	const debugChanged = debugPanelState.dragging || (refs.debugPanel && !refs.debugPanel.classList.contains("hidden"));
+	const settingsChanged = settingsPanelState.dragging;
 	panelState.dragging = false;
 	panelState.resizing = false;
 	debugPanelState.dragging = false;
+	settingsPanelState.dragging = false;
 	if (changed) {
 		savePanelLayout();
 	}
 	if (debugChanged) {
 		saveDebugPanelLayout();
+	}
+	if (settingsChanged) {
+		saveSettings();
 	}
 }
 
@@ -2434,11 +3275,90 @@ async function moveNeeded(itemName) {
 		}, 300);
 	}
 }
+
+async function takeOrder() {
+	if (state.tycoonTrunk.busy) {
+		showToast("Please wait, previous trunk action is still processing.");
+		return;
+	}
+
+	state.tycoonTrunk.busy = true;
+	try {
+		// Trigger the Circle bindable key path used by user apps.
+		sendTycoonCommand("userapp_trigger circle");
+		await new Promise((resolve) => window.setTimeout(resolve, 90));
+
+		let menuTriggered = false;
+		const trunkReady = await ensureTycoonTrunkContext("take-order-button");
+		if (trunkReady) {
+			await pulseTycoonMenuState("take-order-button", 2, 70);
+
+			const takeOrderOption =
+				findTycoonMenuChoice("Take Order", "Take order", "Take Order (O)", "Take order (o)") ||
+				findTycoonMenuChoice("<span sort='A'></span>Take Order");
+
+			if (takeOrderOption) {
+				menuTriggered = await forceTycoonMenuChoiceWithWait(takeOrderOption, 0, 360);
+			}
+
+			if (!menuTriggered) {
+				menuTriggered = forceTycoonChoiceFromCandidates(
+					["Take Order", "Take order", "<span sort='A'></span>Take Order", "Take Order (O)"],
+					0
+				);
+			}
+
+			if (menuTriggered) {
+				await pressTycoonMenuKey("enter", 1, 80);
+				showToast("Take Order requested from trunk menu.");
+				return;
+			}
+		}
+
+		const neededItems = TRACKED_ITEMS.map((item) => {
+			const needed = Math.max(state.order[item] - state.inventory[item], 0);
+			const transferable = Math.min(needed, state.trunk[item]);
+			return { item, transferable };
+		}).filter((entry) => entry.transferable > 0);
+
+		if (neededItems.length === 0) {
+			showToast("Take Order trigger sent (Circle keybind path). Waiting for trunk menu data.");
+			return;
+		}
+
+		let requestedAny = false;
+		for (const entry of neededItems) {
+			const requested = await requestTycoonTrunkTake(entry.item, entry.transferable);
+			if (requested) {
+				requestedAny = true;
+			}
+			await new Promise((resolve) => window.setTimeout(resolve, 70));
+		}
+
+		if (requestedAny) {
+			showToast("Take Order requested from trunk.");
+		} else {
+			showToast("Unable to request Take Order from trunk.");
+		}
+	} finally {
+		window.setTimeout(() => {
+			state.tycoonTrunk.busy = false;
+		}, 320);
+	}
+}
+
 function getLowStockItems() {
-	return TRACKED_ITEMS.filter((item) => state.trunk[item] <= state.settings.lowThreshold);
+	return TRACKED_ITEMS.filter((item) => {
+		const threshold = state.settings.lowThresholdByItem[item] ?? 5;
+		return state.trunk[item] <= threshold;
+	});
 }
 
 function setWaypoint(x, y) {
+	// Send to the Tycoon UserApp parent frame to set the in-game GPS waypoint.
+	window.parent.postMessage({ type: "setWaypoint", x, y }, "*");
+	window.parent.postMessage({ action: "setWaypoint", x, y }, "*");
+
 	const payload = {
 		action: "setWaypoint",
 		x,
@@ -2463,27 +3383,11 @@ function setWaypoint(x, y) {
 	}
 }
 
-function applyGpsSettings() {
-	state.settings.gpsEnabled = refs.gpsEnabledInput.checked;
-
-	if (!state.settings.gpsEnabled) {
-		saveSettings();
-		showToast("GPS waypoint is disabled in settings.");
-		return;
-	}
-
-	if (state.settings.gpsX === null || state.settings.gpsY === null) {
-		saveSettings();
-		showToast("No mission marker data available yet.");
-		return;
-	}
-
-	setWaypoint(state.settings.gpsX, state.settings.gpsY);
-	saveSettings();
-	showToast(`Waypoint set to X: ${state.settings.gpsX}, Y: ${state.settings.gpsY}.`);
-}
-
 function renderOrder() {
+	if (!refs.orderList) {
+		return;
+	}
+
 	refs.orderId.textContent = `#${state.orderId}`;
 	refs.orderList.innerHTML = "";
 
@@ -2509,51 +3413,226 @@ function renderTrunk() {
 
 	TRACKED_ITEMS.forEach((item) => {
 		const row = document.createElement("div");
-		const isLow = state.trunk[item] <= state.settings.lowThreshold;
+		const threshold = state.settings.lowThresholdByItem[item] ?? 5;
+		const isLow = state.trunk[item] <= threshold;
 		row.className = `item-row ${isLow ? "low-stock" : ""}`;
 		row.innerHTML = `
 			<div class="name">${getTrackedItemLabelWithWeight(item)}</div>
-			<div class="qty">In Trunk: ${state.trunk[item]}</div>
+			<div class="qty">In Trunk: ${state.trunk[item]} | Low At: ${threshold}</div>
 			<button class="btn btn-secondary btn-tiny" data-move-one="${item}">Move +1</button>
 		`;
 		refs.trunkList.appendChild(row);
 	});
 }
 
-function render() {
+function renderNow() {
 	renderOrder();
 	renderTrunk();
 	if (refs.orderSyncMeta) {
 		refs.orderSyncMeta.textContent = getSyncDisplayText();
 	}
 
-	refs.lowThresholdInput.value = String(state.settings.lowThreshold);
+	renderLowThresholdInputs();
+	if (refs.themeSelect) {
+		refs.themeSelect.value = state.settings.theme;
+	}
+	if (refs.fontSizeInput) {
+		refs.fontSizeInput.value = String(clamp(state.settings.fontScale || 1, 0.85, 1.35));
+	}
+	applyThemePreset();
+	applyUIFontScale();
+	applySettingsPanelDetachMode({ keepSavedPosition: true });
 	refs.bgOpacityInput.value = String(state.settings.bgOpacity);
 	refs.bgOpacityValue.textContent = `${Math.round(state.settings.bgOpacity * 100)}%`;
-	refs.gpsEnabledInput.checked = state.settings.gpsEnabled;
 	applyWindowBackgroundOpacity();
 }
 
+function render(force = false) {
+	if (force) {
+		if (renderFrameHandle) {
+			window.cancelAnimationFrame(renderFrameHandle);
+			renderFrameHandle = 0;
+		}
+		renderQueued = false;
+		renderNow();
+		return;
+	}
+
+	if (renderQueued) {
+		return;
+	}
+
+	renderQueued = true;
+	renderFrameHandle = window.requestAnimationFrame(() => {
+		renderFrameHandle = 0;
+		renderQueued = false;
+		renderNow();
+	});
+}
+
 function setupEventHandlers() {
+	normalizeButtonTooltipAttributes();
+
 	refs.topbar.addEventListener("pointerdown", startDrag);
 	const debugHeader = refs.debugPanel.querySelector(".debug-header");
 	if (debugHeader) {
 		debugHeader.addEventListener("pointerdown", startDebugPanelDrag);
 	}
 	refs.panelResizeHandle.addEventListener("pointerdown", startResize);
+	if (refs.settingsHeader) {
+		refs.settingsHeader.addEventListener("pointerdown", startSettingsPanelDrag);
+	}
 	window.addEventListener("pointermove", onPointerMove);
 	window.addEventListener("pointerup", stopPointerAction);
 	window.addEventListener("blur", stopPointerAction);
 
-	refs.clearOrderBtn.addEventListener("click", clearOrder);
+	if (refs.clearOrderBtn) {
+		refs.clearOrderBtn.addEventListener("click", clearOrder);
+	}
 
 	refs.resetPanelBtn.addEventListener("click", () => {
-		resetPanelLayout();
-		showToast("Panel layout reset.");
+		setResetConfirmOpen(true);
 	});
 
+	if (refs.resetConfirmCancelBtn) {
+		refs.resetConfirmCancelBtn.addEventListener("click", () => {
+			setResetConfirmOpen(false);
+		});
+	}
+
+	if (refs.resetConfirmOkBtn) {
+		refs.resetConfirmOkBtn.addEventListener("click", () => {
+			setResetConfirmOpen(false);
+			resetPanelLayout();
+			showToast("Panel layout reset.");
+		});
+	}
+
+	if (refs.resetConfirmBackdrop) {
+		refs.resetConfirmBackdrop.addEventListener("click", (event) => {
+			if (event.target === refs.resetConfirmBackdrop) {
+				setResetConfirmOpen(false);
+			}
+		});
+	}
+
 	refs.debugToggleBtn.addEventListener("click", () => {
-		setDebugPanelOpen(refs.debugPanel.classList.contains("hidden"));
+		requestDebugPanelAccess();
+	});
+
+	if (refs.debugPinSubmitBtn) {
+		refs.debugPinSubmitBtn.addEventListener("click", submitDebugPin);
+	}
+
+	if (refs.debugPinCancelBtn) {
+		refs.debugPinCancelBtn.addEventListener("click", () => {
+			shouldOpenDebugAfterPin = false;
+			setDebugPinPanelOpen(false);
+		});
+	}
+
+	if (refs.debugPinInput) {
+		refs.debugPinInput.addEventListener("keydown", (event) => {
+			if (event.key === "Enter") {
+				event.preventDefault();
+				submitDebugPin();
+				return;
+			}
+
+			if (event.key === "Escape") {
+				event.preventDefault();
+				shouldOpenDebugAfterPin = false;
+				setDebugPinPanelOpen(false);
+			}
+		});
+	}
+
+	window.addEventListener("keydown", (event) => {
+		if (event.key === "Escape" && refs.resetConfirmBackdrop && !refs.resetConfirmBackdrop.classList.contains("hidden")) {
+			event.preventDefault();
+			setResetConfirmOpen(false);
+			return;
+		}
+
+		if (event.key === "Escape" && refs.debugPinPanel && !refs.debugPinPanel.classList.contains("hidden")) {
+			event.preventDefault();
+			setDebugPinPanelOpen(false);
+		}
+	});
+
+	document.addEventListener("pointermove", () => {
+		recordUserActivity();
+	});
+
+	document.addEventListener("pointerdown", () => {
+		recordUserActivity();
+	});
+
+	document.addEventListener("keydown", () => {
+		recordUserActivity();
+	});
+
+	document.addEventListener("pointerover", (event) => {
+		const target = event.target instanceof Element ? event.target.closest("button") : null;
+		if (!(target instanceof HTMLElement)) {
+			hideFloatingTooltip();
+			return;
+		}
+
+		showFloatingTooltip(target);
+	});
+
+	document.addEventListener("pointerout", (event) => {
+		if (!(event.target instanceof Element)) {
+			return;
+		}
+
+		const fromButton = event.target.closest("button");
+		if (!(fromButton instanceof HTMLElement)) {
+			return;
+		}
+
+		const nextElement = event.relatedTarget;
+		if (nextElement instanceof Element && fromButton.contains(nextElement)) {
+			return;
+		}
+
+		hideFloatingTooltip();
+	});
+
+	document.addEventListener("focusin", (event) => {
+		const target = event.target instanceof Element ? event.target.closest("button") : null;
+		if (target instanceof HTMLElement) {
+			showFloatingTooltip(target);
+		}
+	});
+
+	document.addEventListener("focusout", (event) => {
+		if (!(event.target instanceof Element)) {
+			return;
+		}
+
+		const target = event.target.closest("button");
+		if (target instanceof HTMLElement) {
+			hideFloatingTooltip();
+		}
+	});
+
+	window.addEventListener("scroll", () => {
+		if (activeTooltipTarget) {
+			positionFloatingTooltip(activeTooltipTarget);
+		}
+	});
+
+	window.addEventListener("pointerdown", (event) => {
+		if (!refs.debugPinPanel || refs.debugPinPanel.classList.contains("hidden")) {
+			return;
+		}
+
+		const target = event.target;
+		if (target instanceof Node && !refs.debugPinPanel.contains(target) && target !== refs.debugToggleBtn) {
+			setDebugPinPanelOpen(false);
+		}
 	});
 
 	refs.debugCloseBtn.addEventListener("pointerdown", (event) => {
@@ -2599,41 +3678,109 @@ function setupEventHandlers() {
 	});
 
 	refs.settingsToggleBtn.addEventListener("click", () => {
-		refs.settingsPanel.classList.toggle("hidden");
+		const willOpen = refs.settingsPanel.classList.contains("hidden");
+		refs.settingsPanel.classList.toggle("hidden", !willOpen);
+		if (willOpen) {
+			applySettingsPanelDetachMode({ keepSavedPosition: true });
+		}
 	});
 
 	refs.settingsCloseBtn.addEventListener("click", () => {
 		refs.settingsPanel.classList.add("hidden");
 	});
 
-	refs.lowThresholdInput.addEventListener("change", () => {
-		const parsed = Number(refs.lowThresholdInput.value);
-		state.settings.lowThreshold = clamp(Number.isNaN(parsed) ? 5 : parsed, 1, 99);
-		saveSettings();
-		render();
-		showToast(`Low stock threshold set to ${state.settings.lowThreshold}.`);
-	});
+	if (refs.settingsDetachBtn) {
+		refs.settingsDetachBtn.addEventListener("click", () => {
+			setSettingsDetached(!state.settings.settingsDetached);
+			showToast(state.settings.settingsDetached ? "Settings popped out." : "Settings docked.", 1500);
+		});
+	}
 
-	refs.bgOpacityInput.addEventListener("input", () => {
+	if (refs.settingsDetachedInput) {
+		refs.settingsDetachedInput.addEventListener("change", () => {
+			setSettingsDetached(refs.settingsDetachedInput.checked);
+			showToast(state.settings.settingsDetached ? "Settings popped out." : "Settings docked.", 1500);
+		});
+	}
+
+	if (refs.lowThresholdList) {
+		refs.lowThresholdList.addEventListener("change", (event) => {
+			const target = event.target;
+			if (!(target instanceof HTMLInputElement)) {
+				return;
+			}
+
+			const itemName = target.dataset.thresholdItem;
+			if (!itemName || !TRACKED_ITEMS.includes(itemName)) {
+				return;
+			}
+
+			const parsed = Number(target.value);
+			const nextValue = clamp(Number.isNaN(parsed) ? 5 : parsed, 1, 99);
+			state.settings.lowThresholdByItem[itemName] = nextValue;
+			target.value = String(nextValue);
+			saveSettings();
+			renderTrunk();
+			const lowCount = getLowStockItems().length;
+			refs.trunkAlertCount.textContent = `${lowCount} Low`;
+			showToast(`${itemName} low stock threshold set to ${nextValue}.`);
+		});
+	}
+
+	if (refs.themeSelect) {
+		refs.themeSelect.addEventListener("change", () => {
+			const nextTheme = refs.themeSelect.value;
+			if (!Object.hasOwn(UI_THEME_PRESETS, nextTheme)) {
+				return;
+			}
+
+			state.settings.theme = nextTheme;
+			saveSettings();
+			applyThemePreset();
+			applyWindowBackgroundOpacity();
+			showToast(`Theme set to ${UI_THEME_PRESETS[nextTheme].label}.`, 1800);
+		});
+	}
+
+	if (refs.fontSizeInput) {
+		const updateFontScaleFromInput = () => {
+			const parsed = Number(refs.fontSizeInput.value);
+			state.settings.fontScale = clamp(Number.isNaN(parsed) ? 1 : parsed, 0.85, 1.35);
+			applyUIFontScale();
+			saveSettings();
+		};
+
+		refs.fontSizeInput.addEventListener("input", updateFontScaleFromInput);
+		refs.fontSizeInput.addEventListener("change", updateFontScaleFromInput);
+	}
+
+	const updateBgOpacityFromInput = () => {
 		const parsed = Number(refs.bgOpacityInput.value);
 		state.settings.bgOpacity = clamp(Number.isNaN(parsed) ? 0.82 : parsed, 0, 1);
 		refs.bgOpacityValue.textContent = `${Math.round(state.settings.bgOpacity * 100)}%`;
 		applyWindowBackgroundOpacity();
 		saveSettings();
-	});
+	};
 
-	refs.applyGpsBtn.addEventListener("click", applyGpsSettings);
+	refs.bgOpacityInput.addEventListener("input", updateBgOpacityFromInput);
+	refs.bgOpacityInput.addEventListener("change", updateBgOpacityFromInput);
 
-	refs.orderList.addEventListener("click", (event) => {
-		const target = event.target;
-		if (!(target instanceof HTMLElement)) {
-			return;
-		}
-		const itemName = target.dataset.moveNeeded;
-		if (itemName) {
-			moveNeeded(itemName);
-		}
-	});
+	if (refs.takeOrderBtn) {
+		refs.takeOrderBtn.addEventListener("click", takeOrder);
+	}
+
+	if (refs.orderList) {
+		refs.orderList.addEventListener("click", (event) => {
+			const target = event.target;
+			if (!(target instanceof HTMLElement)) {
+				return;
+			}
+			const itemName = target.dataset.moveNeeded;
+			if (itemName) {
+				moveNeeded(itemName);
+			}
+		});
+	}
 
 	refs.trunkList.addEventListener("click", (event) => {
 		const target = event.target;
@@ -2667,9 +3814,26 @@ function setupEventHandlers() {
 			}
 
 			const parsedData = parseLikelySerializedPayload(data);
+			const markerProbe = getMarkerProbeSnapshot(parsedData);
+			if (markerProbe) {
+				const markerProbeSignature = JSON.stringify(markerProbe);
+				if (markerProbeSignature !== lastMarkerProbeSignature) {
+					lastMarkerProbeSignature = markerProbeSignature;
+					debugLogMessage({
+						type: "pizza-job-debug",
+						stage: "marker-probe",
+						data: markerProbe
+					});
+				}
+			}
+
 			updatePlayerJobStateFromPayload(parsedData);
 			if (!state.isPizzaDeliveryActive) {
 				continue;
+			}
+
+			if (hasCircleTrigger(parsedData)) {
+				takeOrder();
 			}
 
 			if (typeof parsedData.chest === "string") {
@@ -2747,17 +3911,17 @@ function setupEventHandlers() {
 			}
 
 			if (["vehicleEntered", "enteredVehicle"].includes(eventName)) {
-				refreshVehicleTrunkInventory("vehicle-enter");
+				refreshVehicleTrunkInventory("vehicle-enter", true);
 			}
 
 			if (["vehicleExited", "exitedVehicle"].includes(eventName)) {
-				refreshVehicleTrunkInventory("vehicle-exit");
+				refreshVehicleTrunkInventory("vehicle-exit", true);
 			}
 
 			if (eventName === "vehicleStateChanged") {
 				const stateFromPayload = getInVehicleStateFromAny(parsedData);
 				if (typeof stateFromPayload === "boolean") {
-					refreshVehicleTrunkInventory(stateFromPayload ? "vehicle-enter" : "vehicle-exit");
+					refreshVehicleTrunkInventory(stateFromPayload ? "vehicle-enter" : "vehicle-exit", true);
 				}
 			}
 
@@ -2772,20 +3936,33 @@ function setupEventHandlers() {
 				state.tycoonTrunk.layoutOrder = Array.isArray(tycoonChest.layoutOrder)
 					? tycoonChest.layoutOrder
 					: [];
+				const chestDebugPayload = {
+					type: "pizza-job-debug",
+					stage: "chest-selected",
+					chestKey: tycoonChest.chestKey || `chest_${tycoonChest.chestId}`,
+					chestId: tycoonChest.chestId,
+					activeChestId: typeof parsedData.chest === "string" ? parsedData.chest : "",
+					menuOpen: state.tycoonTrunk.menuOpen
+				};
+				const chestDebugSignature = JSON.stringify(chestDebugPayload);
+				if (chestDebugSignature !== lastChestSelectedDebugSignature) {
+					lastChestSelectedDebugSignature = chestDebugSignature;
+					debugLogMessage(chestDebugPayload);
+				}
 				applyTrunkInventoryFromVehicle(tycoonChest.inventory, "Tycoon trunk");
 			}
 
 			// Tycoon sends {vehicle:"modelName"} on enter and {vehicle:"onFoot"} on exit.
 			if (typeof parsedData.vehicle === "string") {
 				const nowInVehicle = parsedData.vehicle !== "onFoot";
-				if (shouldRefreshFromVehicleStateChange(nowInVehicle) && nowInVehicle) {
-					refreshVehicleTrunkInventory("vehicle-enter");
+				if (shouldRefreshFromVehicleStateChange(nowInVehicle)) {
+					refreshVehicleTrunkInventory(nowInVehicle ? "vehicle-enter" : "vehicle-exit", true);
 				}
 			}
 
 			const inVehicleState = getInVehicleStateFromAny(parsedData);
 			if (shouldRefreshFromVehicleStateChange(inVehicleState)) {
-				refreshVehicleTrunkInventory(inVehicleState ? "vehicle-enter" : "vehicle-exit");
+				refreshVehicleTrunkInventory(inVehicleState ? "vehicle-enter" : "vehicle-exit", true);
 			}
 
 			handleIncomingOrderPayload(parsedData);
@@ -2794,8 +3971,15 @@ function setupEventHandlers() {
 	});
 
 	window.addEventListener("resize", () => {
+		if (activeTooltipTarget) {
+			positionFloatingTooltip(activeTooltipTarget);
+		}
+
 		if (isMobileLayout()) {
 			resetPanelLayout();
+			if (state.settings.settingsDetached) {
+				positionDetachedSettingsPanel(true);
+			}
 			saveDebugPanelLayout();
 			return;
 		}
@@ -2812,25 +3996,92 @@ function setupEventHandlers() {
 			refs.debugPanel.style.top = `${clamp(refs.debugPanel.offsetTop, 0, maxDebugTop)}px`;
 			saveDebugPanelLayout();
 		}
+
+		if (state.settings.settingsDetached) {
+			positionDetachedSettingsPanel(true);
+			saveSettings();
+		}
 	});
 
-	if (window.GetParentResourceName) {
-		window.setInterval(() => {
-			if (state.isPizzaDeliveryActive) {
-				requestNuiData();
-				return;
-			}
+	startAdaptiveIntegrationPolling();
+}
 
-			requestPassiveTycoonState("job-state-poll");
-		}, INTEGRATION_POLL_INTERVAL_MS);
-		requestPassiveTycoonState("initial-load");
+function isUserActive() {
+	const timeSinceActivity = Date.now() - state.lastUserActivityTime;
+	return timeSinceActivity < USER_ACTIVITY_TIMEOUT_MS;
+}
+
+function recordUserActivity() {
+	state.lastUserActivityTime = Date.now();
+}
+
+function getPassivePollIntervalMs() {
+	if (document.hidden || refs.app.classList.contains("hidden")) {
+		return INTEGRATION_HIDDEN_POLL_INTERVAL_MS;
 	}
+
+	if (!state.isPizzaDeliveryActive) {
+		return INTEGRATION_IDLE_POLL_INTERVAL_MS;
+	}
+
+	return isUserActive() ? INTEGRATION_POLL_INTERVAL_MS : INTEGRATION_USER_INACTIVE_POLL_INTERVAL_MS;
+}
+
+function getPassivePollReason() {
+	if (state.isPizzaDeliveryActive) {
+		return "active-state-poll";
+	}
+
+	if (document.hidden || refs.app.classList.contains("hidden")) {
+		return "idle-hidden-poll";
+	}
+
+	return "job-state-poll";
+}
+
+function schedulePassiveIntegrationPoll() {
+	window.clearTimeout(passivePollTimer);
+	passivePollTimer = window.setTimeout(() => {
+		requestPassiveTycoonState(getPassivePollReason());
+		schedulePassiveIntegrationPoll();
+	}, getPassivePollIntervalMs());
+}
+
+function getNuiPollIntervalMs() {
+	if (document.hidden || refs.app.classList.contains("hidden")) {
+		return NUI_HIDDEN_POLL_INTERVAL_MS;
+	}
+
+	return state.isPizzaDeliveryActive ? INTEGRATION_POLL_INTERVAL_MS : NUI_IDLE_POLL_INTERVAL_MS;
+}
+
+function scheduleNuiIntegrationPoll() {
+	if (!window.GetParentResourceName) {
+		return;
+	}
+
+	window.clearTimeout(nuiPollTimer);
+	nuiPollTimer = window.setTimeout(() => {
+		if (state.isPizzaDeliveryActive) {
+			requestNuiData();
+		}
+		scheduleNuiIntegrationPoll();
+	}, getNuiPollIntervalMs());
+}
+
+function startAdaptiveIntegrationPolling() {
+	// Always request current state from the Tycoon parent frame on load.
+	requestPassiveTycoonState("initial-load");
+	schedulePassiveIntegrationPoll();
+	scheduleNuiIntegrationPoll();
 }
 
 setupEventHandlers();
 loadSettings();
+applyUIFontScale();
+applySettingsPanelDetachMode({ keepSavedPosition: true });
 loadPanelLayout();
 loadDebugPanelLayout();
 resetPizzaJobRuntimeState();
 setPizzaJobAppVisible(false);
-render();
+render(true);
