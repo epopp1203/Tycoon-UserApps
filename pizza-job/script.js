@@ -1459,6 +1459,20 @@ function renderLowThresholdInputs() {
 		return;
 	}
 
+	const existingInputs = refs.lowThresholdList.querySelectorAll("input[data-threshold-item]");
+	if (existingInputs.length === TRACKED_ITEMS.length) {
+		// DOM already built — just sync values, skipping any input currently being edited
+		for (const input of existingInputs) {
+			if (document.activeElement === input) {
+				continue;
+			}
+			const item = input.dataset.thresholdItem;
+			const thresholdValue = state.settings.lowThresholdByItem[item] ?? 5;
+			input.value = String(thresholdValue);
+		}
+		return;
+	}
+
 	refs.lowThresholdList.innerHTML = "";
 	for (const item of TRACKED_ITEMS) {
 		const row = document.createElement("label");
