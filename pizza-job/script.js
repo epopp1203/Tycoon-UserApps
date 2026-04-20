@@ -4412,7 +4412,11 @@ function getPassivePollReason() {
 function schedulePassiveIntegrationPoll() {
 	window.clearTimeout(passivePollTimer);
 	passivePollTimer = window.setTimeout(() => {
-		requestPassiveTycoonState(getPassivePollReason());
+		const appHidden = document.hidden || refs.app.classList.contains("hidden");
+		const shouldRequestPassiveState = state.isPizzaDeliveryActive || !appHidden;
+		if (shouldRequestPassiveState) {
+			requestPassiveTycoonState(getPassivePollReason());
+		}
 		schedulePassiveIntegrationPoll();
 	}, getPassivePollIntervalMs());
 }
