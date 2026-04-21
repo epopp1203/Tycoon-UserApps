@@ -35,6 +35,22 @@
 						</button>
 					</div>
 				</section>
+
+				<div class="bottom-row" aria-label="Bottom utility row">
+					<section class="card leaderboard-card" aria-label="Pizza leaderboard">
+						<div class="card-header leaderboard-header">
+							<h2>Pizza Leaderboard</h2>
+							<span id="leaderboard-your-rank" class="pill">Rank: --</span>
+						</div>
+						<div class="leaderboard-content">
+							<div id="leaderboard-status" class="leaderboard-status">Waiting for leaderboard data...</div>
+							<ol id="leaderboard-top-list" class="leaderboard-top-list"></ol>
+						</div>
+						<div class="card-footer leaderboard-footer">
+							<div id="leaderboard-your-amount" class="leaderboard-your-amount">Your Score: --</div>
+						</div>
+					</section>
+				</div>
 			</main>
 
 			<aside id="settings-panel" class="settings-panel hidden" aria-label="Settings panel">
@@ -83,6 +99,29 @@
 						<input id="auto-take-order-on-exit-checkbox" type="checkbox" />
 						<span>Disable auto-take order on vehicle exit</span>
 					</label>
+					<div class="setting-row stacked leaderboard-settings-group">
+						<div class="setting-inline-row low-threshold-heading">
+							<span>Leaderboard API</span>
+						</div>
+						<label class="setting-row stacked">
+							<span>Stat Name</span>
+							<input id="leaderboard-stat-input" type="text" placeholder="pizzas_delivered" />
+						</label>
+						<label class="setting-row stacked">
+							<span>Private API Key</span>
+							<input id="leaderboard-api-key-input" type="password" autocomplete="off" placeholder="X-Tycoon-Key" />
+						</label>
+						<label class="setting-row stacked">
+							<span>Refresh Interval (seconds)</span>
+							<input id="leaderboard-refresh-seconds-input" type="number" min="10" max="600" step="1" />
+						</label>
+						<label class="setting-row checkbox-row">
+							<input id="leaderboard-manual-only-checkbox" type="checkbox" />
+							<span>(Manual Refresh Only)</span>
+						</label>
+						<button id="leaderboard-refresh-now-btn" class="btn btn-secondary btn-block" type="button">Refresh Leaderboard Now</button>
+						<div class="setting-note">Top10 routes typically require a valid private key.</div>
+					</div>
 				</div>
 			</aside>
 
