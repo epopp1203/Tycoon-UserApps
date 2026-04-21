@@ -110,12 +110,106 @@ body {
 	min-height: 0;
 }
 
+.compact-layout {
+	grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.bottom-row {
+	display: flex;
+	align-items: stretch;
+	justify-content: stretch;
+	gap: 0;
+	min-height: 0;
+}
+
+.bottom-row-spacer {
+	flex: 1;
+	min-width: 0;
+}
+
 .order-card-disabled {
 	display: none;
 }
 
 .trunk-card {
 	height: 100%;
+}
+
+.leaderboard-card {
+	width: 100%;
+	max-width: 100%;
+	min-height: 132px;
+	flex-shrink: 0;
+	border-top-left-radius: 12px;
+	border-top-right-radius: 12px;
+}
+
+.leaderboard-header h2 {
+	font-size: calc(12px * var(--ui-font-scale));
+	letter-spacing: 0.2px;
+}
+
+.leaderboard-content {
+	padding: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	min-height: 0;
+}
+
+.leaderboard-status {
+	font-size: calc(10px * var(--ui-font-scale));
+	color: var(--muted);
+	line-height: 1.25;
+	min-height: 14px;
+}
+
+.leaderboard-top-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: calc(10px * var(--ui-font-scale));
+	line-height: 1.2;
+	min-height: 0;
+	overflow-y: auto;
+	counter-reset: leaderboard-rank;
+}
+
+.leaderboard-top-list li {
+	counter-increment: leaderboard-rank;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 6px;
+	border: 1px solid rgba(90, 122, 170, 0.45);
+	border-radius: 7px;
+	background: linear-gradient(90deg, rgba(60, 87, 130, 0.22), rgba(28, 43, 72, 0.1));
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: var(--text);
+}
+
+.leaderboard-top-list li::before {
+	content: "#" counter(leaderboard-rank);
+	font-size: calc(9px * var(--ui-font-scale));
+	font-weight: 700;
+	color: #ffd38f;
+	min-width: 22px;
+	text-align: left;
+}
+
+.leaderboard-footer {
+	padding: 5px 8px;
+}
+
+.leaderboard-your-amount {
+	font-size: calc(10px * var(--ui-font-scale));
+	font-weight: 600;
+	color: #ffd7ab;
 }
 
 .card {
@@ -465,6 +559,12 @@ body {
 
 .checkbox-row {
 	justify-content: flex-start;
+}
+
+.leaderboard-settings-group {
+	margin-top: 4px;
+	padding-top: 6px;
+	border-top: 1px dashed rgba(124, 145, 170, 0.4);
 }
 
 /* Hide spinner arrows on number inputs globally */
@@ -888,6 +988,22 @@ input[type="checkbox"] {
 
 	.layout {
 		grid-template-columns: 1fr;
+	}
+
+	.compact-layout {
+		grid-template-rows: minmax(0, 1fr) auto;
+	}
+
+	.bottom-row {
+		justify-content: stretch;
+	}
+
+	.bottom-row-spacer {
+		display: none;
+	}
+
+	.leaderboard-card {
+		width: 100%;
 	}
 
 	.topbar {

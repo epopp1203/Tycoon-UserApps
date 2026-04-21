@@ -21,6 +21,7 @@ const INTEGRATION_USER_INACTIVE_POLL_INTERVAL_MS = 12000;
 const NUI_IDLE_POLL_INTERVAL_MS = 6000;
 const NUI_HIDDEN_POLL_INTERVAL_MS = 10000;
 const USER_ACTIVITY_TIMEOUT_MS = 120000;
+const LEADERBOARD_REQUEST_TIMEOUT_MS = 5000;
 const VEHICLE_TRUNK_REFRESH_COOLDOWN_MS = 800;
 const TYCOON_OPEN_TRUNK_COMMANDS = ["rm_trunk", "rm_cabtrunk"];
 const DEBUG_PIN_XOR_KEY = 0x53;
@@ -38,6 +39,14 @@ const MARKER_DATA_KEYS = [
 	"yellowMarker",
 	"marker"
 ];
+
+const PIZZA_LEADERBOARD_CONFIG = {
+	enabled: true,
+	apiBaseUrl: "https://tycoon-2epova.users.cfx.re/status",
+	statName: "pizzas_delivered",
+	apiKey: "",
+	refreshIntervalMs: 90000
+};
 
 const TRUNK_ITEM_KEY_ALIASES = {
 	Pizza: ["Pizza", "pizza", "pizza_slice"],
@@ -346,7 +355,11 @@ const state = {
 		gpsEnabled: true,
 		gpsX: null,
 		gpsY: null,
-		autoTakeOrderOnExit: true
+		autoTakeOrderOnExit: true,
+		leaderboardStatName: PIZZA_LEADERBOARD_CONFIG.statName,
+		leaderboardApiKey: PIZZA_LEADERBOARD_CONFIG.apiKey,
+		leaderboardRefreshIntervalMs: PIZZA_LEADERBOARD_CONFIG.refreshIntervalMs,
+		leaderboardManualOnly: false
 	},
 	playerJobName: "",
 	isPizzaDeliveryActive: false,
@@ -355,6 +368,17 @@ const state = {
 	orderSync: {
 		source: "Local",
 		at: null
+	},
+	playerId: null,
+	playerName: "",
+	leaderboard: {
+		top: [],
+		yourRank: null,
+		yourAmount: null,
+		status: "Waiting for leaderboard data...",
+		lastUpdatedAt: 0,
+		lastFetchAt: 0,
+		isLoading: false
 	},
 	tycoonTrunk: createInitialTycoonTrunkState()
 };
@@ -368,6 +392,10 @@ const refs = {
 	orderList: document.getElementById("order-list"),
 	trunkList: document.getElementById("trunk-list"),
 	trunkAlertCount: document.getElementById("trunk-alert-count"),
+	leaderboardYourRank: document.getElementById("leaderboard-your-rank"),
+	leaderboardYourAmount: document.getElementById("leaderboard-your-amount"),
+	leaderboardTopList: document.getElementById("leaderboard-top-list"),
+	leaderboardStatus: document.getElementById("leaderboard-status"),
 	takeOrderBtn: document.getElementById("take-order-btn"),
 	clearOrderBtn: document.getElementById("clear-order-btn"),
 	settingsToggleBtn: document.getElementById("settings-toggle-btn"),
@@ -396,6 +424,11 @@ const refs = {
 	bgOpacityInput: document.getElementById("bg-opacity-input"),
 	bgOpacityValue: document.getElementById("bg-opacity-value"),
 	autoTakeOrderOnExitCheckbox: document.getElementById("auto-take-order-on-exit-checkbox"),
+	leaderboardStatInput: document.getElementById("leaderboard-stat-input"),
+	leaderboardApiKeyInput: document.getElementById("leaderboard-api-key-input"),
+	leaderboardRefreshSecondsInput: document.getElementById("leaderboard-refresh-seconds-input"),
+	leaderboardManualOnlyCheckbox: document.getElementById("leaderboard-manual-only-checkbox"),
+	leaderboardRefreshNowBtn: document.getElementById("leaderboard-refresh-now-btn"),
 	toast: document.getElementById("toast"),
 	floatingTooltip: document.getElementById("floating-tooltip"),
 	resetConfirmBackdrop: document.getElementById("reset-confirm-backdrop"),
@@ -449,6 +482,210 @@ let renderFrameHandle = 0;
 let renderQueued = false;
 let passivePollTimer = 0;
 let nuiPollTimer = 0;
+let leaderboardPollTimer = 0;
+
+function getLeaderboardConfig() {
+	const statName =
+		typeof state.settings.leaderboardStatName === "string" && state.settings.leaderboardStatName.trim()
+			? state.settings.leaderboardStatName.trim()
+			: PIZZA_LEADERBOARD_CONFIG.statName;
+	const apiKey =
+		typeof state.settings.leaderboardApiKey === "string" ? state.settings.leaderboardApiKey.trim() : "";
+	const refreshIntervalMs = clamp(
+		Number(state.settings.leaderboardRefreshIntervalMs) || PIZZA_LEADERBOARD_CONFIG.refreshIntervalMs,
+		10000,
+		600000
+	);
+
+	return {
+		enabled: Boolean(PIZZA_LEADERBOARD_CONFIG.enabled),
+		apiBaseUrl: PIZZA_LEADERBOARD_CONFIG.apiBaseUrl,
+		statName,
+		apiKey,
+		refreshIntervalMs,
+		manualOnly: state.settings.leaderboardManualOnly === true
+	};
+}
+
+function formatLeaderboardNumber(value) {
+	const numeric = Number(value);
+	if (!Number.isFinite(numeric)) {
+		return "--";
+	}
+
+	return numeric.toLocaleString();
+}
+
+function normalizeLeaderboardEntries(rawTop) {
+	if (!Array.isArray(rawTop)) {
+		return [];
+	}
+
+	return rawTop
+		.map((entry) => {
+			if (!entry || typeof entry !== "object") {
+				return null;
+			}
+
+			const username = typeof entry.username === "string" ? entry.username : "Unknown";
+			const userId = Number(entry.user_id);
+			const amount = Number(entry.amount);
+
+			return {
+				username,
+				userId: Number.isFinite(userId) ? userId : null,
+				amount: Number.isFinite(amount) ? amount : 0
+			};
+		})
+		.filter(Boolean);
+}
+
+function resolveYourLeaderboardPosition(entries) {
+	if (!Array.isArray(entries) || entries.length === 0) {
+		return { rank: null, amount: null };
+	}
+
+	const byIdIndex =
+		Number.isFinite(state.playerId) && state.playerId > 0
+			? entries.findIndex((entry) => Number(entry.userId) === Number(state.playerId))
+			: -1;
+	if (byIdIndex >= 0) {
+		return {
+			rank: byIdIndex + 1,
+			amount: entries[byIdIndex].amount
+		};
+	}
+
+	const normalizedPlayerName = typeof state.playerName === "string" ? state.playerName.trim().toLowerCase() : "";
+	if (!normalizedPlayerName) {
+		return { rank: null, amount: null };
+	}
+
+	const byNameIndex = entries.findIndex((entry) => {
+		const normalizedEntryName = typeof entry.username === "string" ? entry.username.trim().toLowerCase() : "";
+		return normalizedEntryName && normalizedEntryName === normalizedPlayerName;
+	});
+
+	if (byNameIndex < 0) {
+		return { rank: null, amount: null };
+	}
+
+	return {
+		rank: byNameIndex + 1,
+		amount: entries[byNameIndex].amount
+	};
+}
+
+function extractPlayerIdentityFromPayload(payload) {
+	if (!payload || typeof payload !== "object") {
+		return;
+	}
+
+	const candidateObjects = [payload, payload.player, payload.user, payload.character].filter(
+		(entry) => entry && typeof entry === "object"
+	);
+
+	let nextPlayerId = state.playerId;
+	let nextPlayerName = state.playerName;
+
+	for (const source of candidateObjects) {
+		for (const key of ["user_id", "vrpid", "vrp_id", "player_id", "id"]) {
+			const parsed = Number(source[key]);
+			if (Number.isFinite(parsed) && parsed > 0) {
+				nextPlayerId = parsed;
+				break;
+			}
+		}
+
+		for (const key of ["username", "player_name", "name"]) {
+			if (typeof source[key] === "string" && source[key].trim()) {
+				nextPlayerName = source[key].trim();
+				break;
+			}
+		}
+	}
+
+	if (nextPlayerId === state.playerId && nextPlayerName === state.playerName) {
+		return;
+	}
+
+	state.playerId = nextPlayerId;
+	state.playerName = nextPlayerName;
+	render();
+}
+
+async function fetchPizzaLeaderboard(force = false, isManual = false) {
+	const config = getLeaderboardConfig();
+	if (!config.enabled || !config.apiBaseUrl || !config.statName) {
+		state.leaderboard.status = "Configure leaderboard API base and stat name in Settings.";
+		render();
+		return;
+	}
+
+	if (config.manualOnly && !isManual) {
+		state.leaderboard.status = "Manual refresh enabled in settings to save API key usage.";
+		render();
+		return;
+	}
+
+	const refreshIntervalMs = Math.max(10000, Number(config.refreshIntervalMs) || 90000);
+	const now = Date.now();
+	if (!force && (state.leaderboard.isLoading || now - state.leaderboard.lastFetchAt < refreshIntervalMs)) {
+		return;
+	}
+
+	state.leaderboard.isLoading = true;
+	state.leaderboard.lastFetchAt = now;
+	state.leaderboard.status = "Refreshing leaderboard...";
+	render();
+
+	const baseUrl = String(config.apiBaseUrl).replace(/\/$/, "");
+	const statName = encodeURIComponent(String(config.statName));
+	const url = `${baseUrl}/top10/${statName}`;
+	const headers = {};
+	if (typeof config.apiKey === "string" && config.apiKey.trim()) {
+		headers["X-Tycoon-Key"] = config.apiKey.trim();
+	}
+
+	const controller = new AbortController();
+	const timeoutHandle = window.setTimeout(() => {
+		controller.abort();
+	}, LEADERBOARD_REQUEST_TIMEOUT_MS);
+
+	try {
+		const response = await fetch(url, {
+			method: "GET",
+			headers,
+			signal: controller.signal
+		});
+
+		if (!response.ok) {
+			throw new Error(`HTTP ${response.status}`);
+		}
+
+		const payload = await response.json();
+		const allEntries = normalizeLeaderboardEntries(payload.top);
+		const yourPosition = resolveYourLeaderboardPosition(allEntries);
+
+		state.leaderboard.top = allEntries.slice(0, 3);
+		state.leaderboard.yourRank = yourPosition.rank;
+		state.leaderboard.yourAmount = yourPosition.amount;
+		state.leaderboard.lastUpdatedAt = Date.now();
+		state.leaderboard.status =
+			allEntries.length > 0
+				? `Top ${Math.min(3, allEntries.length)} loaded (${new Date(state.leaderboard.lastUpdatedAt).toLocaleTimeString()}).`
+				: "Leaderboard returned no entries.";
+	} catch (error) {
+		state.leaderboard.top = [];
+		state.leaderboard.yourRank = null;
+		state.leaderboard.yourAmount = null;
+		state.leaderboard.status = `Leaderboard unavailable (${error && error.message ? error.message : "request failed"}).`;
+	} finally {
+		window.clearTimeout(timeoutHandle);
+		state.leaderboard.isLoading = false;
+		render();
+	}
+}
 
 function readDebugPin() {
 	return DEBUG_PIN_OBFUSCATED.map((value) => String.fromCharCode(value ^ DEBUG_PIN_XOR_KEY)).join("");
@@ -585,6 +822,7 @@ function setPlayerJobState(jobName) {
 	if (activeChanged) {
 		requestNuiData();
 		refreshVehicleTrunkInventory("job-activated");
+		fetchPizzaLeaderboard(true, false);
 		render();
 	}
 }
@@ -1479,6 +1717,18 @@ function loadSettings() {
 		}
 		if (typeof parsed.autoTakeOrderOnExit === "boolean") {
 			state.settings.autoTakeOrderOnExit = parsed.autoTakeOrderOnExit;
+		}
+		if (typeof parsed.leaderboardStatName === "string") {
+			state.settings.leaderboardStatName = parsed.leaderboardStatName;
+		}
+		if (typeof parsed.leaderboardApiKey === "string") {
+			state.settings.leaderboardApiKey = parsed.leaderboardApiKey;
+		}
+		if (typeof parsed.leaderboardRefreshIntervalMs === "number") {
+			state.settings.leaderboardRefreshIntervalMs = clamp(parsed.leaderboardRefreshIntervalMs, 10000, 600000);
+		}
+		if (typeof parsed.leaderboardManualOnly === "boolean") {
+			state.settings.leaderboardManualOnly = parsed.leaderboardManualOnly;
 		}
 	} catch (error) {
 		localStorage.removeItem(SETTINGS_STORAGE_KEY);
@@ -3782,9 +4032,48 @@ function renderTrunk() {
 	});
 }
 
+function renderLeaderboard() {
+	if (!refs.leaderboardTopList || !refs.leaderboardYourRank || !refs.leaderboardYourAmount || !refs.leaderboardStatus) {
+		return;
+	}
+
+	refs.leaderboardTopList.innerHTML = "";
+	for (const entry of state.leaderboard.top) {
+		const row = document.createElement("li");
+		row.textContent = `${entry.username} - ${formatLeaderboardNumber(entry.amount)}`;
+		refs.leaderboardTopList.appendChild(row);
+	}
+
+	if (state.leaderboard.top.length === 0) {
+		const row = document.createElement("li");
+		row.textContent = "No entries yet";
+		refs.leaderboardTopList.appendChild(row);
+	}
+
+	refs.leaderboardYourRank.textContent =
+		state.leaderboard.yourRank === null ? "Rank: Unranked" : `Rank: #${state.leaderboard.yourRank}`;
+	refs.leaderboardYourAmount.textContent =
+		state.leaderboard.yourAmount === null
+			? "Your Score: --"
+			: `Your Score: ${formatLeaderboardNumber(state.leaderboard.yourAmount)}`;
+
+	if (state.leaderboard.isLoading) {
+		refs.leaderboardStatus.textContent = "Refreshing leaderboard...";
+		return;
+	}
+
+	if (!Number.isFinite(state.playerId) && !state.playerName) {
+		refs.leaderboardStatus.textContent = "Waiting for player id/name from game payload...";
+		return;
+	}
+
+	refs.leaderboardStatus.textContent = state.leaderboard.status;
+}
+
 function renderNow() {
 	renderOrder();
 	renderTrunk();
+	renderLeaderboard();
 	if (refs.orderSyncMeta) {
 		refs.orderSyncMeta.textContent = getSyncDisplayText();
 	}
@@ -3804,6 +4093,20 @@ function renderNow() {
 	applyWindowBackgroundOpacity();
 	if (refs.autoTakeOrderOnExitCheckbox) {
 		refs.autoTakeOrderOnExitCheckbox.checked = !state.settings.autoTakeOrderOnExit;
+	}
+	if (refs.leaderboardStatInput && document.activeElement !== refs.leaderboardStatInput) {
+		refs.leaderboardStatInput.value = state.settings.leaderboardStatName || "";
+	}
+	if (refs.leaderboardApiKeyInput && document.activeElement !== refs.leaderboardApiKeyInput) {
+		refs.leaderboardApiKeyInput.value = state.settings.leaderboardApiKey || "";
+	}
+	if (refs.leaderboardRefreshSecondsInput && document.activeElement !== refs.leaderboardRefreshSecondsInput) {
+		refs.leaderboardRefreshSecondsInput.value = String(
+			Math.round(clamp(Number(state.settings.leaderboardRefreshIntervalMs) || 90000, 10000, 600000) / 1000)
+		);
+	}
+	if (refs.leaderboardManualOnlyCheckbox) {
+		refs.leaderboardManualOnlyCheckbox.checked = state.settings.leaderboardManualOnly === true;
 	}
 }
 
@@ -4150,6 +4453,59 @@ function setupEventHandlers() {
 		});
 	}
 
+	const applyLeaderboardSettingsFromInputs = (forceRefresh = false) => {
+		if (refs.leaderboardStatInput) {
+			state.settings.leaderboardStatName = refs.leaderboardStatInput.value.trim();
+		}
+		if (refs.leaderboardApiKeyInput) {
+			state.settings.leaderboardApiKey = refs.leaderboardApiKeyInput.value.trim();
+		}
+		if (refs.leaderboardRefreshSecondsInput) {
+			const nextSeconds = clamp(
+				Number.isNaN(Number(refs.leaderboardRefreshSecondsInput.value))
+					? 90
+					: Number(refs.leaderboardRefreshSecondsInput.value),
+				10,
+				600
+			);
+			refs.leaderboardRefreshSecondsInput.value = String(Math.round(nextSeconds));
+			state.settings.leaderboardRefreshIntervalMs = Math.round(nextSeconds * 1000);
+		}
+		if (refs.leaderboardManualOnlyCheckbox) {
+			state.settings.leaderboardManualOnly = refs.leaderboardManualOnlyCheckbox.checked;
+		}
+
+		saveSettings();
+		scheduleLeaderboardPoll();
+		if (forceRefresh) {
+			fetchPizzaLeaderboard(true, false);
+		}
+	};
+
+	for (const input of [
+		refs.leaderboardStatInput,
+		refs.leaderboardApiKeyInput,
+		refs.leaderboardRefreshSecondsInput,
+		refs.leaderboardManualOnlyCheckbox
+	]) {
+		if (!input) {
+			continue;
+		}
+
+		input.addEventListener("change", () => {
+			applyLeaderboardSettingsFromInputs(true);
+			showToast("Leaderboard settings updated.", 1600);
+		});
+	}
+
+	if (refs.leaderboardRefreshNowBtn) {
+		refs.leaderboardRefreshNowBtn.addEventListener("click", () => {
+			applyLeaderboardSettingsFromInputs(false);
+			fetchPizzaLeaderboard(true, true);
+			showToast("Refreshing leaderboard...", 1200);
+		});
+	}
+
 	window.addEventListener("message", (event) => {
 		// Log every raw message so the debug panel shows real incoming payload shapes.
 		debugLogMessage(event.data);
@@ -4173,6 +4529,7 @@ function setupEventHandlers() {
 			}
 
 			const parsedData = parseLikelySerializedPayload(data);
+			extractPlayerIdentityFromPayload(parsedData);
 			const markerProbe = getMarkerProbeSnapshot(parsedData);
 			if (markerProbe) {
 				const markerProbeSignature = JSON.stringify(markerProbe);
@@ -4443,11 +4800,30 @@ function scheduleNuiIntegrationPoll() {
 	}, getNuiPollIntervalMs());
 }
 
+function scheduleLeaderboardPoll() {
+	window.clearTimeout(leaderboardPollTimer);
+	const config = getLeaderboardConfig();
+	if (!config.enabled || config.manualOnly) {
+		return;
+	}
+
+	const refreshIntervalMs = Math.max(10000, Number(config.refreshIntervalMs) || 90000);
+	leaderboardPollTimer = window.setTimeout(() => {
+		const shouldFetch = state.isPizzaDeliveryActive || (refs.app && !refs.app.classList.contains("hidden"));
+		if (shouldFetch) {
+			fetchPizzaLeaderboard(false, false);
+		}
+		scheduleLeaderboardPoll();
+	}, refreshIntervalMs);
+}
+
 function startAdaptiveIntegrationPolling() {
 	// Always request current state from the Tycoon parent frame on load.
 	requestPassiveTycoonState("initial-load");
 	schedulePassiveIntegrationPoll();
 	scheduleNuiIntegrationPoll();
+	fetchPizzaLeaderboard(true, false);
+	scheduleLeaderboardPoll();
 }
 
 setupEventHandlers();
