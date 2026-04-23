@@ -742,6 +742,11 @@ function tryTransformerAutomation() {
       }
     } finally {
       state.isAutomating = false;
+      // Re-assert the session guard. The sell flow itself closes+reopens the
+      // menu via forceMenuBack/vrp-reopen, and each transition flips
+      // menuSessionAutomated back to false in handleIncoming. Without this
+      // re-assert the next poll would run the full sell+pickup sequence again.
+      state.menuSessionAutomated = true;
     }
   })();
 }
