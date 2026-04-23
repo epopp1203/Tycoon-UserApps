@@ -59,8 +59,9 @@ const state = {
   cache: {},
   job: "",
   vehicle: null,
+  aircraftModel: "",
   onFoot: true,
-  inAircraft: false,
+  inOwnAircraft: false,
   isPilotJob: false,
   pos: { x: null, y: null },
   routeIndex: 0,
@@ -77,7 +78,9 @@ const state = {
   lastAlertAt: 0,
   opacityIdx: 0,
   lastArrivedAt: 0,
-  isAutomating: false
+  isAutomating: false,
+  menuSessionAutomated: false,
+  lastTriggerValues: {} // trigger_<name> -> last seen value (for edge detection)
 };
 
 // ---------- Storage helpers ----------
@@ -320,9 +323,26 @@ function requestData() {
       "runway_SSIA_MAIN", "runway_SSIA_SIDE", "runway_SSIA_JET",
       "runway_MGA_MAIN", "runway_MGA_SIDE", "runway_MGA_JET",
       "runway_SCHIA_MAIN", "runway_SCHIA_SIDE", "runway_SCHIA_JET",
+      "trigger_" + NEXT_LEG_TRIGGER,
+      "trigger_" + ATC_TRIGGER,
+      "trigger_" + GEAR_TRIGGER,
       BXP_KEY
     ]
   });
+}
+
+// Tycoon prepends "trigger_" to the registered trigger name when sending values.
+// Triggers fire as a changing numeric token per press — detect the change edge.
+function handleTrigger(triggerName, onFire) {
+  const key = "trigger_" + triggerName;
+  if (!(key in state.cache) && !(key in state.lastTriggerValues)) return;
+  const current = state.cache[key];
+  const previous = state.lastTriggerValues[key];
+  state.lastTriggerValues[key] = current;
+  if (previous === undefined) return; // first observation — establish baseline
+  if (current === previous) return;
+  if (current == null || current === 0 || current === false) return;
+  onFire();
 }
 
 function registerTriggers() {
@@ -667,6 +687,7 @@ function forceChoice(label) {
 function tryTransformerAutomation() {
   if (!state.settings.autoTransformer) return;
   if (state.isAutomating) return;
+  if (state.menuSessionAutomated) return;
   if (!state.menuOpen) return;
   if (!Array.isArray(state.menuChoices) || state.menuChoices.length === 0) return;
 
@@ -677,6 +698,7 @@ function tryTransformerAutomation() {
   if (!isCargoMenu) return;
 
   state.isAutomating = true;
+  state.menuSessionAutomated = true;
 
   const { airport } = nearestAirport();
   const airportKey = airport ? airport.key : null;
@@ -797,7 +819,10 @@ function handleIncoming(data) {
       state.menuOpen = coerceBool(value);
       state.cache[key] = state.menuOpen;
       if (!wasOpen && state.menuOpen) {
+        state.menuSessionAutomated = false;
         setTimeout(tryTransformerAutomation, 150);
+      } else if (wasOpen && !state.menuOpen) {
+        state.menuSessionAutomated = false;
       }
     } else if (key.startsWith("runway_")) {
       ingestRunway(key, value);
@@ -820,10 +845,16 @@ function handleIncoming(data) {
     state.vehicle = data.vehicle;
     state.onFoot = data.vehicle === "onFoot";
   }
-  if (data.aircraft != null) {
-    state.inAircraft = Boolean(data.aircraft);
-    if (state.inAircraft) state.onFoot = false;
+  // data.aircraft is the OWNED spawned aircraft model name — it does not imply
+  // the player is currently inside it. Only mark as in-own-aircraft when the
+  // current occupied vehicle matches the spawned aircraft model.
+  if (typeof data.aircraft === "string") {
+    state.aircraftModel = data.aircraft;
   }
+  state.inOwnAircraft = Boolean(
+    state.aircraftModel && state.vehicle && state.vehicle !== "onFoot" &&
+      state.vehicle === state.aircraftModel
+  );
 
   // Position
   if (typeof data.pos_x === "number") state.pos.x = data.pos_x;
@@ -841,16 +872,17 @@ function handleIncoming(data) {
   // BXP
   if (typeof data[BXP_KEY] === "number") state.bxp = data[BXP_KEY];
 
-  // Triggers
-  if (data[NEXT_LEG_TRIGGER]) advanceLeg(false);
-  if (data[ATC_TRIGGER]) callATC();
-  if (data[GEAR_TRIGGER]) toggleLandingGear();
+  // Triggers (game sends as trigger_<name>; detect edge per pizza-job pattern)
+  handleTrigger(NEXT_LEG_TRIGGER, () => advanceLeg(false));
+  handleTrigger(ATC_TRIGGER, callATC);
+  handleTrigger(GEAR_TRIGGER, toggleLandingGear);
 
   // Auto advance
   if (state.isPilotJob && !state.onFoot) advanceLegIfArrived();
 
-  // Menu re-check in case choices arrived after menu_open
-  if (state.menuOpen && state.menuChoices.length > 0) {
+  // Menu re-check in case choices arrived after menu_open in a later payload.
+  // Guarded by state.menuSessionAutomated so we don't re-fire per poll.
+  if (state.menuOpen && state.menuChoices.length > 0 && !state.menuSessionAutomated) {
     setTimeout(tryTransformerAutomation, 150);
   }
 
