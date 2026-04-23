@@ -841,8 +841,8 @@ function handleIncoming(data) {
     }
   }
 
-  // Job
-  const rawJob = data.job ?? data.job_name ?? data.job_title;
+  // Job — use || so an empty string in data.job falls through to job_name/job_title.
+  const rawJob = data.job || data.job_name || data.job_title;
   if (typeof rawJob === "string") {
     state.job = rawJob;
     const norm = rawJob.toLowerCase();
