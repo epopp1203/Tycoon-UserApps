@@ -322,6 +322,9 @@ function clearBlip() {
 }
 
 function requestData() {
+  // Per Example2 docs, keys prefixed with `trigger_`, `chest_`, `temp_` are not
+  // cached and cannot be returned by getNamedData — they arrive as push events
+  // when they fire / open / change, so we don't include them here.
   post({
     type: "getNamedData",
     keys: [
@@ -332,9 +335,6 @@ function requestData() {
       "runway_SSIA_MAIN", "runway_SSIA_SIDE", "runway_SSIA_JET",
       "runway_MGA_MAIN", "runway_MGA_SIDE", "runway_MGA_JET",
       "runway_SCHIA_MAIN", "runway_SCHIA_SIDE", "runway_SCHIA_JET",
-      "trigger_" + NEXT_LEG_TRIGGER,
-      "trigger_" + ATC_TRIGGER,
-      "trigger_" + GEAR_TRIGGER,
       BXP_KEY
     ]
   });
@@ -613,7 +613,7 @@ function renderCargoInventory() {
       const row = document.createElement("div");
       row.className = "cp-cargo-item";
       row.innerHTML = '<span class="cp-cargo-name">' + escapeHtml(String(id)) + '</span>' +
-        '<span class="cp-cargo-qty">&times;' + String(amount) + '</span>';
+        '<span class="cp-cargo-qty">&times;' + escapeHtml(String(amount)) + '</span>';
       listEl.appendChild(row);
     }
   }
@@ -634,7 +634,7 @@ function renderCargoInventory() {
       const row = document.createElement("div");
       row.className = "cp-cargo-item";
       row.innerHTML = '<span class="cp-cargo-name">' + escapeHtml(String(id)) + '</span>' +
-        '<span class="cp-cargo-qty">&times;' + String(amount) + '</span>';
+        '<span class="cp-cargo-qty">&times;' + escapeHtml(String(amount)) + '</span>';
       trunkEl.appendChild(row);
     }
   }
