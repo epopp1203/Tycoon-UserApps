@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cargo Pilot</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Main panel -->
+  <section id="cp-main" class="cp-panel cp-main hidden" aria-label="Cargo Pilot">
+    <header class="cp-header" data-drag-handle>
+      <div class="cp-title">
+        <span class="cp-plane" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path fill="currentColor" d="M21 16v-2l-8-5V3.5C13 2.67 12.33 2 11.5 2S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+          </svg>
+        </span>
+        <h1>Cargo Pilot</h1>
+      </div>
+      <div class="cp-header-actions">
+        <button id="cp-btn-runway" class="cp-icon-btn" title="Toggle runway panel" data-tooltip="Runway panel">RWY</button>
+        <button id="cp-btn-cargo" class="cp-icon-btn" title="Toggle cargo panel" data-tooltip="Cargo panel">CGO</button>
+        <button id="cp-btn-settings" class="cp-icon-btn" title="Settings" data-tooltip="Settings">&#9881;</button>
+        <button id="cp-btn-opacity" class="cp-icon-btn" title="Cycle opacity" data-tooltip="Cycle opacity">&#9680;</button>
+        <button id="cp-btn-min" class="cp-icon-btn" title="Minimize" data-tooltip="Minimize">&#8211;</button>
+      </div>
+    </header>
+
+    <div class="cp-body">
+      <div class="cp-row cp-status-row">
+        <div class="cp-status-item">
+          <span class="cp-label">Status</span>
+          <span id="cp-status" class="cp-pill cp-pill-idle">Idle</span>
+        </div>
+        <div class="cp-status-item">
+          <span class="cp-label">BXP</span>
+          <span id="cp-bxp" class="cp-value">--</span>
+        </div>
+      </div>
+
+      <div class="cp-section cp-route-section">
+        <div class="cp-section-title">Route</div>
+        <div class="cp-leg">
+          <span id="cp-leg-from" class="cp-airport">--</span>
+          <span class="cp-arrow">&#8594;</span>
+          <span id="cp-leg-to" class="cp-airport cp-accent">--</span>
+        </div>
+        <div id="cp-leg-meta" class="cp-leg-meta">Distance: --</div>
+        <div class="cp-route-actions">
+          <button id="cp-btn-next-leg" class="cp-btn cp-btn-primary" title="Advance to next leg">Next Leg</button>
+          <button id="cp-btn-set-gps" class="cp-btn cp-btn-secondary" title="Set GPS route to next airport">Set GPS</button>
+          <button id="cp-btn-toggle-gear" class="cp-btn cp-btn-secondary" title="Toggle landing gear">Gear</button>
+        </div>
+        <div id="cp-gear-state" class="cp-gear-state">Landing gear: --</div>
+      </div>
+
+      <div class="cp-section cp-runway-summary">
+        <div class="cp-section-title">Runway @ Nearest</div>
+        <div id="cp-nearest" class="cp-nearest">Nearest airport: --</div>
+        <div id="cp-runway-quick" class="cp-runway-quick"></div>
+        <button id="cp-btn-call-atc" class="cp-btn cp-btn-accent" title="Call ATC for preferred runway">Call ATC</button>
+      </div>
+    </div>
+
+    <div class="cp-resize" data-resize-handle title="Resize"></div>
+  </section>
+
+  <!-- Runway sub-panel -->
+  <section id="cp-runway-panel" class="cp-panel cp-sub hidden" aria-label="Runway Status">
+    <header class="cp-header" data-drag-handle>
+      <div class="cp-title"><h2>Runway Status</h2></div>
+      <div class="cp-header-actions">
+        <button class="cp-icon-btn" data-close="#cp-runway-panel" title="Close" data-tooltip="Close">&times;</button>
+      </div>
+    </header>
+    <div class="cp-body">
+      <div id="cp-runway-list" class="cp-runway-list"></div>
+      <div class="cp-legend">
+        <span class="cp-dot cp-dot-free"></span> Free
+        <span class="cp-dot cp-dot-occupied"></span> Occupied
+        <span class="cp-dot cp-dot-reserved"></span> Reserved
+      </div>
+    </div>
+    <div class="cp-resize" data-resize-handle></div>
+  </section>
+
+  <!-- Cargo inventory sub-panel -->
+  <section id="cp-cargo-panel" class="cp-panel cp-sub hidden" aria-label="Cargo Inventory">
+    <header class="cp-header" data-drag-handle>
+      <div class="cp-title">
+        <span class="cp-plane" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path fill="currentColor" d="M21 16v-2l-8-5V3.5C13 2.67 12.33 2 11.5 2S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+          </svg>
+        </span>
+        <h2>Cargo</h2>
+      </div>
+      <div class="cp-header-actions">
+        <button class="cp-icon-btn" data-close="#cp-cargo-panel" title="Close" data-tooltip="Close">&times;</button>
+      </div>
+    </header>
+    <div class="cp-body">
+      <div id="cp-cargo-next" class="cp-cargo-next">Next Stop: --</div>
+      <div class="cp-section-title">On Person</div>
+      <div id="cp-cargo-inv" class="cp-cargo-list cp-empty">(empty)</div>
+      <div class="cp-section-title">In Plane Trunk</div>
+      <div id="cp-cargo-trunk" class="cp-cargo-list cp-empty">(empty)</div>
+      <div id="cp-cargo-weight" class="cp-weight">Weight: -- / --</div>
+    </div>
+    <div class="cp-resize" data-resize-handle></div>
+  </section>
+
+  <!-- Settings sub-panel -->
+  <section id="cp-settings-panel" class="cp-panel cp-sub hidden" aria-label="Settings">
+    <header class="cp-header" data-drag-handle>
+      <div class="cp-title"><h2>Settings</h2></div>
+      <div class="cp-header-actions">
+        <button class="cp-icon-btn" data-close="#cp-settings-panel" title="Close" data-tooltip="Close">&times;</button>
+      </div>
+    </header>
+    <div class="cp-body cp-settings-body">
+      <label class="cp-row stacked">
+        <div class="cp-inline"><span>Text Size</span><span id="cp-font-val">100%</span></div>
+        <input id="cp-font-input" type="range" min="0.85" max="1.6" step="0.01" value="1" />
+      </label>
+      <label class="cp-row stacked">
+        <div class="cp-inline"><span>Background Opacity</span><span id="cp-bg-val">82%</span></div>
+        <input id="cp-bg-input" type="range" min="0" max="1" step="0.01" value="0.82" />
+      </label>
+      <label class="cp-row">
+        <span>Theme</span>
+        <select id="cp-theme-select">
+          <option value="nightflight">Night Flight</option>
+          <option value="cockpit">Cockpit</option>
+          <option value="skyblue">Sky Blue</option>
+        </select>
+      </label>
+      <label class="cp-row">
+        <span>Runway Preference</span>
+        <select id="cp-runway-pref">
+          <option value="MAIN">MAIN</option>
+          <option value="SIDE">SIDE</option>
+          <option value="JET">JET</option>
+        </select>
+      </label>
+      <label class="cp-row checkbox">
+        <input id="cp-auto-transformer" type="checkbox" />
+        <span>Auto sell/pickup at transformers</span>
+      </label>
+      <label class="cp-row checkbox">
+        <input id="cp-afk-alert" type="checkbox" />
+        <span>AFK alert when stationary</span>
+      </label>
+      <label class="cp-row stacked">
+        <div class="cp-inline"><span>AFK Timeout (seconds)</span><span id="cp-afk-val">60</span></div>
+        <input id="cp-afk-input" type="range" min="15" max="300" step="5" value="60" />
+      </label>
+      <div class="cp-settings-note">Settings are saved to localStorage.</div>
+    </div>
+    <div class="cp-resize" data-resize-handle></div>
+  </section>
+
+  <div id="cp-toast" class="cp-toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
