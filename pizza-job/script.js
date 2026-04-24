@@ -1752,7 +1752,7 @@ function loadSettings() {
 			state.settings.leaderboardApiKey = parsed.leaderboardApiKey;
 		}
 		if (typeof parsed.leaderboardRefreshIntervalMs === "number") {
-			state.settings.leaderboardRefreshIntervalMs = clamp(parsed.leaderboardRefreshIntervalMs, LEADERBOARD_REFRESH_MIN_MS, 600000);
+			state.settings.leaderboardRefreshIntervalMs = clamp(parsed.leaderboardRefreshIntervalMs, LEADERBOARD_REFRESH_MIN_MS, 1800000);
 		}
 		if (typeof parsed.leaderboardManualOnly === "boolean") {
 			state.settings.leaderboardManualOnly = parsed.leaderboardManualOnly;
@@ -4126,7 +4126,7 @@ function renderNow() {
 	}
 	if (refs.leaderboardRefreshSecondsInput && document.activeElement !== refs.leaderboardRefreshSecondsInput) {
 		refs.leaderboardRefreshSecondsInput.value = String(
-			Math.round(clamp(Number(state.settings.leaderboardRefreshIntervalMs) || 300000, LEADERBOARD_REFRESH_MIN_MS, 600000) / 1000)
+			Math.round(clamp(Number(state.settings.leaderboardRefreshIntervalMs) || 300000, LEADERBOARD_REFRESH_MIN_MS, 1800000) / 1000)
 		);
 	}
 	if (refs.leaderboardManualOnlyCheckbox) {
@@ -4487,7 +4487,7 @@ function setupEventHandlers() {
 					? 300
 					: Number(refs.leaderboardRefreshSecondsInput.value),
 				60,
-				600
+				1800
 			);
 			refs.leaderboardRefreshSecondsInput.value = String(Math.round(nextSeconds));
 			state.settings.leaderboardRefreshIntervalMs = Math.round(nextSeconds * 1000);
