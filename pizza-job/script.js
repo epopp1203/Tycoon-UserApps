@@ -21,7 +21,8 @@ const INTEGRATION_USER_INACTIVE_POLL_INTERVAL_MS = 12000;
 const NUI_IDLE_POLL_INTERVAL_MS = 6000;
 const NUI_HIDDEN_POLL_INTERVAL_MS = 10000;
 const USER_ACTIVITY_TIMEOUT_MS = 120000;
-const LEADERBOARD_REQUEST_TIMEOUT_MS = 5000;
+const LEADERBOARD_REQUEST_TIMEOUT_MS = 3000;
+const LEADERBOARD_TOTAL_TIMEOUT_MS = 20000;
 const LEADERBOARD_REFRESH_MIN_MS = 60000;
 const LEADERBOARD_MANUAL_REFRESH_COOLDOWN_MS = 30000;
 const VEHICLE_TRUNK_REFRESH_COOLDOWN_MS = 800;
@@ -616,7 +617,7 @@ function formatLeaderboardNumber(value) {
 function normalizeLeaderboardEntries(rawTop) {
 	const normalizedArray = Array.isArray(rawTop)
 		? rawTop
-		: rawTop && typeof rawTop === "object"
+		: rawTop && typeof rawTop === "object" && Object.keys(rawTop).every(k => Number.isFinite(Number(k)))
 			? Object.entries(rawTop).map(([key, value]) => {
 				if (value && typeof value === "object") {
 					return {
@@ -626,17 +627,15 @@ function normalizeLeaderboardEntries(rawTop) {
 								? value.user_id
 								: value.userId !== undefined
 									? value.userId
-									: Number.isFinite(Number(key))
-										? Number(key)
-										: undefined
+									: Number(key)
 					};
 				}
 
 				const numericValue = Number(value);
 				if (Number.isFinite(numericValue)) {
 					return {
-						username: Number.isFinite(Number(key)) ? `User ${key}` : String(key),
-						user_id: Number.isFinite(Number(key)) ? Number(key) : null,
+						username: `User ${key}`,
+						user_id: Number(key),
 						amount: numericValue
 					};
 				}
@@ -1009,12 +1008,6 @@ async function fetchPizzaLeaderboard(force = false, isManual = false) {
 		headers["X-Tycoon-Key"] = config.apiKey.trim();
 	}
 
-	// Set up request timeout to prevent hanging requests
-	const controller = new AbortController();
-	const timeoutHandle = window.setTimeout(() => {
-		controller.abort();
-	}, LEADERBOARD_REQUEST_TIMEOUT_MS);
-
 	try {
 		const statCandidates = getLeaderboardStatCandidates(config.statName);
 		const candidateUrls = statCandidates.flatMap((candidateStat) =>
@@ -1028,13 +1021,28 @@ async function fetchPizzaLeaderboard(force = false, isManual = false) {
 		let selectedUrl = candidateUrls[0] ? candidateUrls[0].url : "";
 		let selectedStat = config.statName;
 		let lastHttpError = "";
+		const fetchStartTime = Date.now();
 
 		for (const candidate of candidateUrls) {
-			const response = await fetch(candidate.url, {
-				method: "GET",
-				headers,
-				signal: controller.signal
-			});
+			if (Date.now() - fetchStartTime >= LEADERBOARD_TOTAL_TIMEOUT_MS) {
+				break;
+			}
+
+			const controller = new AbortController();
+			const timeoutHandle = window.setTimeout(() => controller.abort(), LEADERBOARD_REQUEST_TIMEOUT_MS);
+			let response;
+			try {
+				response = await fetch(candidate.url, {
+					method: "GET",
+					headers,
+					signal: controller.signal
+				});
+			} catch (_fetchError) {
+				// Request timed out or was aborted — skip this candidate
+				continue;
+			} finally {
+				window.clearTimeout(timeoutHandle);
+			}
 
 			if (!response.ok) {
 				lastHttpError = `HTTP ${response.status}`;
@@ -1093,8 +1101,7 @@ async function fetchPizzaLeaderboard(force = false, isManual = false) {
 		state.leaderboard.yourAmount = null;
 		state.leaderboard.status = `Leaderboard unavailable (${error && error.message ? error.message : "request failed"}).`;
 	} finally {
-		// Clean up: clear timeout and restore loading state
-		window.clearTimeout(timeoutHandle);
+		// Restore loading state
 		state.leaderboard.isLoading = false;
 		render();
 	}
