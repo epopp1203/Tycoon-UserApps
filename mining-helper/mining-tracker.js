@@ -418,6 +418,8 @@ function applyTheme(themeKey) {
   if (selectEl && selectEl.value !== selected) {
     selectEl.value = selected;
   }
+
+  applyOpacity();
 }
 
 function initializeThemeSelector() {
@@ -1266,9 +1268,15 @@ function initializeOpacityBtn() {
 }
 
 function applyOpacity() {
-  const container = document.getElementById("draggableWindow");
-  if (container) {
-    container.style.background = `rgba(15, 23, 35, ${OPACITY_LEVELS[opacityIndex]})`;
+  const theme = THEME_PRESETS[activeTheme] || THEME_PRESETS["steel-core"];
+  const baseBg = theme["--ui-panel-bg"] || "rgba(15, 23, 35, 0.95)";
+  const match = baseBg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (match) {
+    const [, r, g, b] = match;
+    document.documentElement.style.setProperty(
+      "--ui-panel-bg",
+      `rgba(${r}, ${g}, ${b}, ${OPACITY_LEVELS[opacityIndex]})`
+    );
   }
 }
 
