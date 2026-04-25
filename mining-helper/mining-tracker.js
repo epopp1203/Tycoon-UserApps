@@ -445,12 +445,19 @@ function initializeDragging() {
   
   const savedPosition = getSavedPosition();
   if (savedPosition) {
-    draggableWindow.style.left = savedPosition.x + "px";
-    draggableWindow.style.top = savedPosition.y + "px";
+    const clamped = clampPosition(savedPosition.x, savedPosition.y, draggableWindow);
+    draggableWindow.style.left = clamped.x + "px";
+    draggableWindow.style.top = clamped.y + "px";
   }
   
   header.style.cursor = "move";
   header.addEventListener("mousedown", startDragging);
+  header.addEventListener("dblclick", (e) => {
+    if (e.target.closest(".header-actions, button, select, input")) return;
+    localStorage.removeItem("miningTracker_position");
+    draggableWindow.style.left = "20px";
+    draggableWindow.style.top = "20px";
+  });
   document.addEventListener("mousemove", drag);
   document.addEventListener("mouseup", stopDragging);
   
@@ -539,6 +546,17 @@ function startDragging(e) {
   e.preventDefault();
 }
 
+function clampPosition(x, y, el) {
+  const MARGIN = 60;
+  const vw = window.innerWidth || document.documentElement.clientWidth;
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  const w = el ? el.offsetWidth : 0;
+  const h = el ? el.offsetHeight : 0;
+  const clampedX = Math.min(Math.max(x, MARGIN - w), vw - MARGIN);
+  const clampedY = Math.min(Math.max(y, 0), vh - MARGIN);
+  return { x: isFinite(clampedX) ? clampedX : 20, y: isFinite(clampedY) ? clampedY : 20 };
+}
+
 function drag(e) {
   if (!isDragging) return;
   
@@ -549,8 +567,9 @@ function drag(e) {
   const newX = windowStartX + deltaX;
   const newY = windowStartY + deltaY;
 
-  draggableWindow.style.left = newX + "px";
-  draggableWindow.style.top = newY + "px";
+  const clamped = clampPosition(newX, newY, draggableWindow);
+  draggableWindow.style.left = clamped.x + "px";
+  draggableWindow.style.top = clamped.y + "px";
 }
 
 function stopDragging() {
