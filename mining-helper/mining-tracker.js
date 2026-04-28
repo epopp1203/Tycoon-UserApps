@@ -1018,6 +1018,10 @@ function updateInventoryETA(weight, maxWeight) {
   const etaEl = document.getElementById("inv-eta");
   if (!etaEl) return;
   const now = Date.now();
+  // Flush history on weight drop (e.g. after ore exchange) to avoid negative fill-rate.
+  if (weightHistory.length > 0 && weight < weightHistory[weightHistory.length - 1].weight) {
+    weightHistory.length = 0;
+  }
   weightHistory.push({ time: now, weight });
   while (weightHistory.length > 1 && now - weightHistory[0].time > WEIGHT_HISTORY_MS) {
     weightHistory.shift();
@@ -1484,9 +1488,10 @@ function updateOreLog(oreType, amount) {
         log.push({ time: now, count: amount });
         if (log.length > 200) log.shift();
       } else {
-        last.count = amount;
+        // Ore count dropped (exchange). Flush log and start a fresh baseline
+        // so getOreRate doesn't bridge pre- and post-exchange entries.
+        log.length = 0;
         log.push({ time: now, count: amount });
-        if (log.length > 200) log.shift();
       }
     }
   }
