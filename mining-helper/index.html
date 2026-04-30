@@ -90,6 +90,39 @@
             </div>
           </div>
         </div>
+
+        <div class="xp-stats-section">
+          <div class="xp-stats-card">
+            <div class="xp-stats-header">
+              <i class="fas fa-bolt"></i>
+              <span>Mining XP</span>
+            </div>
+            <div class="xp-stats-row">
+              <div class="xp-stat-item">
+                <div class="xp-stat-value" id="mining-xp-total">--</div>
+                <div class="xp-stat-label">Total XP</div>
+              </div>
+              <div class="xp-stat-divider"></div>
+              <div class="xp-stat-item">
+                <div class="xp-stat-value" id="mining-xp-level">--</div>
+                <div class="xp-stat-label">Level</div>
+              </div>
+              <div class="xp-stat-divider"></div>
+              <div class="xp-stat-item">
+                <div class="xp-stat-value" id="mining-xp-to-next">--</div>
+                <div class="xp-stat-label">To Next</div>
+              </div>
+              <div class="xp-stat-divider"></div>
+              <div class="xp-stat-item">
+                <div class="xp-stat-value" id="mining-perk-chance">--%</div>
+                <div class="xp-stat-label">Perk %</div>
+              </div>
+            </div>
+            <div class="xp-level-bar-track">
+              <div class="xp-level-bar-fill" id="mining-xp-bar"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="ore-grid">
@@ -116,7 +149,7 @@
                 <div class="stat-label">Vouchers</div>
               </div>
               <div class="stat-item">
-                <div class="stat-value" id="copper-hr">0 <span class="rate-trend" id="copper-trend"></span></div>
+                <div class="stat-value" id="copper-hr"><span id="copper-hr-val">0</span> <span class="rate-trend" id="copper-trend"></span></div>
                 <div class="stat-label">Per Hour</div>
               </div>
               <div class="stat-item">
@@ -150,7 +183,7 @@
                 <div class="stat-label">Vouchers</div>
               </div>
               <div class="stat-item">
-                <div class="stat-value" id="iron-hr">0 <span class="rate-trend" id="iron-trend"></span></div>
+                <div class="stat-value" id="iron-hr"><span id="iron-hr-val">0</span> <span class="rate-trend" id="iron-trend"></span></div>
                 <div class="stat-label">Per Hour</div>
               </div>
               <div class="stat-item">
@@ -264,6 +297,10 @@
     <div class="settings-row">
       <span class="settings-label">Show Performance</span>
       <button class="btn-setting-toggle active" id="togglePerformanceBtn" title="Performance Metrics: Visible" data-tooltip="Performance Metrics: Visible">On</button>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">Show Mining XP</span>
+      <button class="btn-setting-toggle active" id="toggleXpBtn" title="Mining XP: Visible" data-tooltip="Mining XP: Visible">On</button>
     </div>
   </div>
 
