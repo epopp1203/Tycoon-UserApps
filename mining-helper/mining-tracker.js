@@ -1,12 +1,16 @@
 // Disable console logging to reduce FiveM log file spam
 if (typeof console !== 'undefined') {
+  let keepWarnLogs = false;
+  try {
+    keepWarnLogs = localStorage.getItem("miningTracker_devWarn") === "true";
+  } catch {}
   console.log = function() {};
-  console.warn = function() {};
+  if (!keepWarnLogs) console.warn = function() {};
   console.info = function() {};
   console.debug = function() {};
 }
 
-const REQUIRED_JOB = "miner"
+const REQUIRED_JOB = "miner";
 let isMinerJob = false;
 let lastWeight = null;
 let lastMaxWeight = null;
@@ -645,6 +649,17 @@ function startSettingsDragging(e) {
   e.preventDefault();
 }
 
+function clampSettingsPosition(x, y, el) {
+  const minVisible = 40;
+  const vw = window.innerWidth || document.documentElement.clientWidth;
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  const w = el ? (el.offsetWidth || 218) : 218;
+  const h = el ? (el.offsetHeight || 220) : 220;
+  const clampedX = Math.min(Math.max(x, minVisible - w), vw - minVisible);
+  const clampedY = Math.min(Math.max(y, 0), vh - minVisible);
+  return { x: isFinite(clampedX) ? clampedX : 20, y: isFinite(clampedY) ? clampedY : 20 };
+}
+
 function dragSettings(e) {
   if (!isSettingsDragging) return;
 
@@ -657,8 +672,9 @@ function dragSettings(e) {
   const newX = settingsWindowStartX + deltaX;
   const newY = settingsWindowStartY + deltaY;
 
-  settingsMenu.style.left = newX + "px";
-  settingsMenu.style.top = newY + "px";
+  const clamped = clampSettingsPosition(newX, newY, settingsMenu);
+  settingsMenu.style.left = clamped.x + "px";
+  settingsMenu.style.top = clamped.y + "px";
 }
 
 function stopSettingsDragging() {
@@ -668,11 +684,13 @@ function stopSettingsDragging() {
 }
 
 function toggleUI(visible) {
-  document.getElementById("draggableWindow").style.display = visible ? "block" : "none";
+  const container = document.getElementById("draggableWindow");
+  if (!container) return;
+  container.style.display = visible ? "block" : "none";
   if (!visible) {
     closeSettingsMenu();
-    const container = document.getElementById("draggableWindow");
-    if (container) container.classList.remove("ore-idle-alert");
+    container.classList.remove("ore-idle-alert");
+    updateInventoryWarningState(false);
     const etaEl = document.getElementById("inv-eta");
     if (etaEl) etaEl.textContent = "";
     weightHistory.length = 0;
@@ -802,6 +820,8 @@ function resetSessionMetrics() {
   sessionExchangeCount = 0;
   lastIronVoucherCount = null;
   lastCopperVoucherCount = null;
+  lastIronExchangeAttemptAt = 0;
+  lastCopperExchangeAttemptAt = 0;
 
   for (const ore of ORE_KEYS) {
     oreLog[ore] = [];
@@ -970,7 +990,8 @@ function updateMinimizedStats() {
     ? Math.round((lastWeight / lastMaxWeight) * 100)
     : "--";
   const cu = lastInventoryObj?.mining_copper?.amount ?? 0;
-  stats.textContent = `${pct}% ${cu}`;
+  const fe = lastInventoryObj?.mining_iron?.amount ?? 0;
+  stats.textContent = `${pct}% ${(cu + fe).toLocaleString()}`;
 }
 
 function updateInventoryETA(weight, maxWeight) {
@@ -1358,7 +1379,7 @@ function startWaitingStateTimer() {
 }
 
 function checkInventoryThreshold(percentage) {
-  const isWarning = percentage > INVENTORY_ALERT_THRESHOLD;
+  const isWarning = percentage >= INVENTORY_ALERT_THRESHOLD;
 
   if (isWarning) {
     if (!inventoryAlertTriggered) {
@@ -1575,7 +1596,7 @@ function getOreRate(oreType) {
   }
 
   const sessionWeight = Math.min(sessionDuration / RECENT_WINDOW_MS, 1.0);
-  const hybridHr = sessionRateHr * sessionWeight + recentRateHr * (1 - sessionWeight);
+  const hybridHr = recentRateHr * sessionWeight + sessionRateHr * (1 - sessionWeight);
   let trend = 0;
   if (sessionRateHr > 0) {
     if (recentRateHr > sessionRateHr * 1.1) trend = 1;
@@ -1586,6 +1607,8 @@ function getOreRate(oreType) {
 
 let lastIronVoucherCount = null;
 let lastCopperVoucherCount = null;
+let lastIronExchangeAttemptAt = 0;
+let lastCopperExchangeAttemptAt = 0;
 let isExchanging = false;
 let lastReopenTime = 0;
 let hasReopenedForLeftovers = false;
@@ -1593,6 +1616,7 @@ const REOPEN_COOLDOWN = 5000;
 const MAX_REOPEN_COOLDOWN = 30000;
 let reopenCooldownMs = REOPEN_COOLDOWN;
 let reopenAttemptCount = 0;
+const EXCHANGE_STALE_WINDOW_MS = 5000;
 
 function shouldReopenMenu() {
   const now = Date.now();
@@ -1639,49 +1663,69 @@ async function tryAutoVoucherExchange() {
   if (!hasIronExchange && !hasCopperExchange) return;
 
   isExchanging = true;
+  let exchangeSucceeded = false;
 
-  const selectOption = async (label) => {
+  const selectOption = async (label, oreType, attemptedAmount) => {
     const option = choices.find(c => c[0]?.includes(label))?.[0];
     if (option) {
       window.parent.postMessage({ type: 'forceMenuChoice', choice: option, mod: 0 }, '*');
       await new Promise(res => setTimeout(res, 500));
-      sessionExchangeCount++;
-      saveSessionData();
-      const exchEl = document.getElementById("total-exchanges");
-      if (exchEl) exchEl.textContent = sessionExchangeCount.toLocaleString();
+      exchangeSucceeded = true;
+      if (oreType === "iron") {
+        lastIronVoucherCount = attemptedAmount;
+        lastIronExchangeAttemptAt = Date.now();
+      } else if (oreType === "copper") {
+        lastCopperVoucherCount = attemptedAmount;
+        lastCopperExchangeAttemptAt = Date.now();
+      }
       return true;
     }
     return false;
   };
 
-  if (lastIronVoucherCount !== null && ironLeft > 0 && ironLeft === lastIronVoucherCount) {
-    lastIronVoucherCount = null;
-    ironLeft = 0;
+  if (lastIronVoucherCount !== null) {
+    const ironUnchanged = ironLeft > 0 && ironLeft === lastIronVoucherCount;
+    const ironAttemptRecent = Date.now() - lastIronExchangeAttemptAt <= EXCHANGE_STALE_WINDOW_MS;
+    if (ironUnchanged && ironAttemptRecent) {
+      ironLeft = 0;
+    } else if (!ironUnchanged) {
+      lastIronVoucherCount = null;
+      lastIronExchangeAttemptAt = 0;
+    }
   }
 
-  if (lastCopperVoucherCount !== null && copperLeft > 0 && copperLeft === lastCopperVoucherCount) {
-    lastCopperVoucherCount = null;
-    copperLeft = 0;
+  if (lastCopperVoucherCount !== null) {
+    const copperUnchanged = copperLeft > 0 && copperLeft === lastCopperVoucherCount;
+    const copperAttemptRecent = Date.now() - lastCopperExchangeAttemptAt <= EXCHANGE_STALE_WINDOW_MS;
+    if (copperUnchanged && copperAttemptRecent) {
+      copperLeft = 0;
+    } else if (!copperUnchanged) {
+      lastCopperVoucherCount = null;
+      lastCopperExchangeAttemptAt = 0;
+    }
   }
 
   if (copperLeft > 0 && hasCopperExchange) {
     if (copperLeft >= 10 && hasCopperX10) {
-      const success = await selectOption("Exchange Copper Ore x10");
-      if (success) lastCopperVoucherCount = null;
+      await selectOption("Exchange Copper Ore x10", "copper", copperLeft);
     } else if (copperLeft >= 1 && hasCopperSingle) {
-      const success = await selectOption("Exchange Copper Ore");
-      if (success) lastCopperVoucherCount = null;
+      await selectOption("Exchange Copper Ore", "copper", copperLeft);
     }
   }
 
   if (ironLeft > 0 && hasIronExchange) {
     if (ironLeft >= 10 && hasIronX10) {
-      const success = await selectOption("Exchange Iron Ore x10");
-      if (success) lastIronVoucherCount = null;
+      await selectOption("Exchange Iron Ore x10", "iron", ironLeft);
     } else if (ironLeft >= 1 && hasIronSingle) {
-      const success = await selectOption("Exchange Iron Ore");
-      if (success) lastIronVoucherCount = null;
+      await selectOption("Exchange Iron Ore", "iron", ironLeft);
     }
+  }
+
+  if (exchangeSucceeded) {
+    sessionExchangeCount++;
+    saveSessionData();
+    const exchEl = document.getElementById("total-exchanges");
+    if (exchEl) exchEl.textContent = sessionExchangeCount.toLocaleString();
   }
 
   isExchanging = false;
@@ -1915,8 +1959,6 @@ window.onload = () => {
   window.addEventListener('keydown', escapeListener);
   document.addEventListener("visibilitychange", syncTrackerAutoPoll);
   window.addEventListener("beforeunload", stopTrackerAutoPoll);
-
-  updateInventoryWarningState(false);
 
   startWaitingStateTimer();
 
