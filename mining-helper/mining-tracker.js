@@ -1663,14 +1663,14 @@ async function tryAutoVoucherExchange() {
   if (!hasIronExchange && !hasCopperExchange) return;
 
   isExchanging = true;
-  let exchangeSucceeded = false;
+  let exchangeCount = 0;
 
   const selectOption = async (label, oreType, attemptedAmount) => {
     const option = choices.find(c => c[0]?.includes(label))?.[0];
     if (option) {
       window.parent.postMessage({ type: 'forceMenuChoice', choice: option, mod: 0 }, '*');
       await new Promise(res => setTimeout(res, 500));
-      exchangeSucceeded = true;
+      exchangeCount += 1;
       if (oreType === "iron") {
         lastIronVoucherCount = attemptedAmount;
         lastIronExchangeAttemptAt = Date.now();
@@ -1721,8 +1721,8 @@ async function tryAutoVoucherExchange() {
     }
   }
 
-  if (exchangeSucceeded) {
-    sessionExchangeCount++;
+  if (exchangeCount > 0) {
+    sessionExchangeCount += exchangeCount;
     saveSessionData();
     const exchEl = document.getElementById("total-exchanges");
     if (exchEl) exchEl.textContent = sessionExchangeCount.toLocaleString();
