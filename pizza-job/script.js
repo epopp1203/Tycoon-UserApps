@@ -832,7 +832,7 @@ function getLeaderboardStatCandidates(statName) {
 	const normalizedPrimary = typeof statName === "string" ? statName.trim() : "";
 	const candidates = [
 		normalizedPrimary,
-		"pizza_delivery",
+		...(normalizedPrimary !== "pizza_delivery" ? ["pizza_delivery"] : []),
 		"pizza",
 		"pizza delivery",
 		"pizza-delivery"
@@ -2776,12 +2776,22 @@ function renderLowThresholdInputs() {
 
 function applyWindowBackgroundOpacity() {
 	const theme = getActiveThemePreset();
+	const root = document.documentElement;
 	const sliderOpacity = clamp(state.settings.bgOpacity, 0, 1);
 	const baseOpacity = sliderOpacity;
 	const surfaceOpacity = clamp(baseOpacity * 0.76, 0, 0.9);
 	const overlayOpacity = clamp(baseOpacity * 0.9, 0, 0.95);
 	const subtleOpacity = clamp(baseOpacity * 0.56, 0, 0.8);
 	const containerOpacity = clamp(0.2 + sliderOpacity * 0.8, 0.2, 1);
+
+	root.style.setProperty("--card-bg-r", theme.cardRgb.join(", "));
+	root.style.setProperty("--card-bg-a", (surfaceOpacity * 0.45).toFixed(2));
+	root.style.setProperty("--header-bg-r", theme.headerRgb.join(", "));
+	root.style.setProperty("--header-bg-a", (surfaceOpacity * 0.42).toFixed(2));
+	root.style.setProperty("--footer-bg-r", theme.footerRgb.join(", "));
+	root.style.setProperty("--footer-bg-a", (overlayOpacity * 0.7).toFixed(2));
+	root.style.setProperty("--row-bg-r", theme.rowRgb.join(", "));
+	root.style.setProperty("--row-bg-a", (overlayOpacity * 0.6).toFixed(2));
 
 	refs.app.style.setProperty("--window-bg-opacity", baseOpacity.toFixed(2));
 	refs.app.style.setProperty("--window-surface-opacity", surfaceOpacity.toFixed(2));
@@ -2803,22 +2813,6 @@ function applyWindowBackgroundOpacity() {
 
 	if (refs.debugPinPanel) {
 		refs.debugPinPanel.style.backgroundColor = `rgba(${theme.overlayRgb.join(",")}, ${(overlayOpacity * 0.94).toFixed(2)})`;
-	}
-
-	for (const card of document.querySelectorAll(".card")) {
-		card.style.backgroundColor = `rgba(${theme.cardRgb.join(",")}, ${(surfaceOpacity * 0.45).toFixed(2)})`;
-	}
-
-	for (const header of document.querySelectorAll(".card-header")) {
-		header.style.backgroundColor = `rgba(${theme.headerRgb.join(",")}, ${(surfaceOpacity * 0.42).toFixed(2)})`;
-	}
-
-	for (const footer of document.querySelectorAll(".card-footer")) {
-		footer.style.backgroundColor = `rgba(${theme.footerRgb.join(",")}, ${(overlayOpacity * 0.7).toFixed(2)})`;
-	}
-
-	for (const row of document.querySelectorAll(".item-row")) {
-		row.style.backgroundColor = `rgba(${theme.rowRgb.join(",")}, ${(overlayOpacity * 0.6).toFixed(2)})`;
 	}
 }
 
@@ -3187,8 +3181,6 @@ function forceTycoonMenuChoice(rawChoiceLabel, mod = 0) {
 function requestTycoonMenuState(reason = "") {
 	const payloads = [
 		{ type: "getData" },
-		{ type: "getData", scope: "menu" },
-		{ type: "getData", scope: "menuState" },
 		{
 			type: "getData",
 			include: ["menu_open", "menu", "menu_choices", "menu_choice", "prompt", "prompt_open", "chest"],
@@ -3306,22 +3298,9 @@ function postTycoonMenuKeyVariants(keyName) {
 	const payloads = [
 		{ type: "forceMenuKey", key: keyName },
 		{ type: "menuKeyPress", key: keyName },
-		{ type: "keyPress", key: keyName },
-		{ type: "simulateKeyPress", key: keyName },
 		{ type: "mMenuKey", key: keyName },
-		{ type: "menuInput", key: keyName },
 		{ type: "menuControl", control: upperKey },
-		{ type: "controlPress", control: upperKey },
-		{ type: "forceControl", control: upperKey },
-		{ action: "menuKey", type: "menuKey", key: keyName },
-		{ action: "mMenuKey", type: "mMenuKey", key: keyName },
-		{ action: "menuControl", type: "menuControl", control: upperKey },
-		{ type: "forceMenuKey", key: keyName, keyCode },
-		{ type: "menuKeyPress", key: keyName, keyCode },
-		{ type: "keyPress", key: keyName, keyCode },
-		{ type: "simulateKeyPress", key: keyName, keyCode },
-		{ type: "menuControl", control: upperKey, keyCode },
-		{ type: "controlPress", control: upperKey, keyCode }
+		{ type: "forceMenuKey", key: keyName, keyCode }
 	];
 
 	for (const payload of payloads) {
@@ -4547,7 +4526,7 @@ function onPointerMove(event) {
 
 function stopPointerAction() {
 	const changed = panelState.dragging || panelState.resizing;
-	const debugChanged = debugPanelState.dragging || (refs.debugPanel && !refs.debugPanel.classList.contains("hidden"));
+	const debugChanged = debugPanelState.dragging;
 	const settingsChanged = settingsPanelState.dragging;
 	panelState.dragging = false;
 	panelState.resizing = false;

@@ -28,6 +28,14 @@
 	--window-surface-opacity: 0.64;
 	--window-overlay-opacity: 0.74;
 	--window-subtle-opacity: 0.46;
+	--card-bg-r: 24, 30, 38;
+	--card-bg-a: 0.28;
+	--header-bg-r: 26, 33, 42;
+	--header-bg-a: 0.26;
+	--footer-bg-r: 17, 22, 29;
+	--footer-bg-a: 0.52;
+	--row-bg-r: 30, 36, 43;
+	--row-bg-a: 0.44;
 }
 
 * {
@@ -218,11 +226,7 @@ body {
 	min-height: 0;
 	border: 1px solid var(--line);
 	border-radius: 10px;
-	background: linear-gradient(
-		180deg,
-		rgba(255, 255, 255, calc(var(--window-surface-opacity) * 0.14)),
-		rgba(255, 255, 255, calc(var(--window-surface-opacity) * 0.04))
-	);
+	background-color: rgba(var(--card-bg-r), var(--card-bg-a));
 	box-shadow: var(--shadow);
 	overflow: hidden;
 }
@@ -232,11 +236,7 @@ body {
 	justify-content: space-between;
 	align-items: center;
 	padding: 6px 8px;
-	background: linear-gradient(
-		180deg,
-		rgba(255, 255, 255, calc(var(--window-surface-opacity) * 0.11)),
-		rgba(255, 255, 255, calc(var(--window-surface-opacity) * 0.03))
-	);
+	background-color: rgba(var(--header-bg-r), var(--header-bg-a));
 	border-bottom: 1px solid var(--line);
 }
 
@@ -257,7 +257,7 @@ body {
 }
 
 .card-footer {
-	background: rgba(17, 22, 29, calc(var(--window-overlay-opacity) * 0.8));
+	background-color: rgba(var(--footer-bg-r), var(--footer-bg-a));
 	padding: 6px 8px;
 	border-top: 1px solid var(--line);
 }
@@ -276,7 +276,7 @@ body {
 	align-items: center;
 	gap: 4px;
 	padding: 4px;
-	background: rgba(30, 36, 43, calc(var(--window-overlay-opacity) * 0.82));
+	background: rgba(var(--row-bg-r), var(--row-bg-a));
 	border: 1px solid var(--item-row-border);
 	border-radius: 8px;
 }
