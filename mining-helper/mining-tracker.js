@@ -1652,7 +1652,7 @@ async function tryAutoVoucherExchange() {
   const needsIronSingle = ironLeft > 0 && ironLeft < 10 && !hasIronSingle;
   const needsCopperSingle = copperLeft > 0 && copperLeft < 10 && !hasCopperSingle;
   
-  if ((needsIronSingle || needsCopperSingle) && (ironLeft > 0 || copperLeft > 0) && shouldReopenMenu()) {
+  if ((needsIronSingle || needsCopperSingle) && shouldReopenMenu()) {
     window.parent.postMessage({ type: "forceMenuBack" }, "*");
     await new Promise(r => setTimeout(r, 300));
     window.parent.postMessage({ type: "sendCommand", command: "vrp-reopen" }, "*");
@@ -1665,19 +1665,12 @@ async function tryAutoVoucherExchange() {
   isExchanging = true;
   let exchangeCount = 0;
 
-  const selectOption = async (label, oreType, attemptedAmount) => {
+  const selectOption = async (label) => {
     const option = choices.find(c => c[0]?.includes(label))?.[0];
     if (option) {
       window.parent.postMessage({ type: 'forceMenuChoice', choice: option, mod: 0 }, '*');
       await new Promise(res => setTimeout(res, 500));
       exchangeCount += 1;
-      if (oreType === "iron") {
-        lastIronVoucherCount = attemptedAmount;
-        lastIronExchangeAttemptAt = Date.now();
-      } else if (oreType === "copper") {
-        lastCopperVoucherCount = attemptedAmount;
-        lastCopperExchangeAttemptAt = Date.now();
-      }
       return true;
     }
     return false;
@@ -1705,19 +1698,41 @@ async function tryAutoVoucherExchange() {
     }
   }
 
+  if (copperLeft === 0 && ironLeft === 0) return;
+
   if (copperLeft > 0 && hasCopperExchange) {
-    if (copperLeft >= 10 && hasCopperX10) {
-      await selectOption("Exchange Copper Ore x10", "copper", copperLeft);
-    } else if (copperLeft >= 1 && hasCopperSingle) {
-      await selectOption("Exchange Copper Ore", "copper", copperLeft);
+    const copperStart = copperLeft;
+    while (copperLeft >= 10 && hasCopperX10) {
+      const ok = await selectOption("Exchange Copper Ore x10");
+      if (!ok) break;
+      copperLeft -= 10;
+    }
+    while (copperLeft >= 1 && hasCopperSingle) {
+      const ok = await selectOption("Exchange Copper Ore");
+      if (!ok) break;
+      copperLeft -= 1;
+    }
+    if (copperLeft !== copperStart) {
+      lastCopperVoucherCount = copperLeft;
+      lastCopperExchangeAttemptAt = Date.now();
     }
   }
 
   if (ironLeft > 0 && hasIronExchange) {
-    if (ironLeft >= 10 && hasIronX10) {
-      await selectOption("Exchange Iron Ore x10", "iron", ironLeft);
-    } else if (ironLeft >= 1 && hasIronSingle) {
-      await selectOption("Exchange Iron Ore", "iron", ironLeft);
+    const ironStart = ironLeft;
+    while (ironLeft >= 10 && hasIronX10) {
+      const ok = await selectOption("Exchange Iron Ore x10");
+      if (!ok) break;
+      ironLeft -= 10;
+    }
+    while (ironLeft >= 1 && hasIronSingle) {
+      const ok = await selectOption("Exchange Iron Ore");
+      if (!ok) break;
+      ironLeft -= 1;
+    }
+    if (ironLeft !== ironStart) {
+      lastIronVoucherCount = ironLeft;
+      lastIronExchangeAttemptAt = Date.now();
     }
   }
 
@@ -1818,7 +1833,7 @@ window.addEventListener("message", (event) => {
     }
   }
 
-  if (data.menu_choices && window.state.cache.menu_open && !isExchanging && data.menu_open == null) {
+  if (data.menu_choices && window.state.cache.menu_open && !isExchanging && data.menu_open === undefined) {
     setTimeout(() => tryAutoVoucherExchange(), 100);
   }
 
