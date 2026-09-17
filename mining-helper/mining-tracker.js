@@ -27,8 +27,12 @@ let sessionTotalMined = 0;
 let lastTotalOre = 0;
 let hasInitialized = false;
 let inventoryAlertTriggered = false;
-let INVENTORY_ALERT_THRESHOLD = parseInt(localStorage.getItem("miningTracker_threshold")) || 95;
-let isMuted = localStorage.getItem("miningTracker_muted") === "true";
+let INVENTORY_ALERT_THRESHOLD = 95;
+let isMuted = false;
+try {
+  INVENTORY_ALERT_THRESHOLD = parseInt(localStorage.getItem("miningTracker_threshold")) || 95;
+  isMuted = localStorage.getItem("miningTracker_muted") === "true";
+} catch {}
 let lastAlertPlayedAt = 0;
 const ALERT_COOLDOWN_MS = 25000;
 
@@ -38,14 +42,27 @@ let sessionExchangeCount = 0;
 
 // Opacity cycling
 const OPACITY_LEVELS = [0.95, 0.70, 0.40, 0.20];
-let opacityIndex = parseInt(localStorage.getItem("miningTracker_opacity") || "0");
+let opacityIndex = 0;
+try {
+  const saved = parseInt(localStorage.getItem("miningTracker_opacity") || "0");
+  if (saved >= 0 && saved < OPACITY_LEVELS.length) {
+    opacityIndex = saved;
+  }
+} catch {}
 
 // Auto-exchange toggle
-let autoExchangeEnabled = localStorage.getItem("miningTracker_autoExchange") !== "false";
-let showBxpCard = localStorage.getItem("miningTracker_showBxp") !== "false";
-let showPerformanceCard = localStorage.getItem("miningTracker_showPerformance") !== "false";
-let showXpCard = localStorage.getItem("miningTracker_showXp") !== "false";
-let activeTheme = localStorage.getItem("miningTracker_theme") || "steel-core";
+let autoExchangeEnabled = true;
+let showBxpCard = true;
+let showPerformanceCard = true;
+let showXpCard = true;
+let activeTheme = "steel-core";
+try {
+  autoExchangeEnabled = localStorage.getItem("miningTracker_autoExchange") !== "false";
+  showBxpCard = localStorage.getItem("miningTracker_showBxp") !== "false";
+  showPerformanceCard = localStorage.getItem("miningTracker_showPerformance") !== "false";
+  showXpCard = localStorage.getItem("miningTracker_showXp") !== "false";
+  activeTheme = localStorage.getItem("miningTracker_theme") || "steel-core";
+} catch {}
 
 const THEME_PRESETS = {
   "steel-core": {
@@ -342,6 +359,15 @@ let settingsDragStartX = 0;
 let settingsDragStartY = 0;
 let settingsWindowStartX = 0;
 let settingsWindowStartY = 0;
+let escapeListener = null;
+let isExchangeScheduled = false;
+
+// Event listener references for cleanup
+let headerDoubleClickHandler = null;
+let settingsButtonMouseDownHandler = null;
+let settingsMenuClickHandler = null;
+let settingsCloseButtonMouseDownHandler = null;
+let closeMenuOnDocumentMouseDownHandler = null;
 
 function coerceMenuOpen(value) {
   if (typeof value === "boolean") return value;
@@ -466,12 +492,14 @@ function initializeDragging() {
   
   header.style.cursor = "move";
   header.addEventListener("mousedown", startDragging);
-  header.addEventListener("dblclick", (e) => {
+  
+  headerDoubleClickHandler = (e) => {
     if (e.target.closest(".header-actions, button, select, input")) return;
     localStorage.removeItem("miningTracker_position");
     draggableWindow.style.left = "20px";
     draggableWindow.style.top = "20px";
-  });
+  };
+  header.addEventListener("dblclick", headerDoubleClickHandler);
   document.addEventListener("mousemove", drag);
   document.addEventListener("mouseup", stopDragging);
   
@@ -694,9 +722,16 @@ function toggleUI(visible) {
     const etaEl = document.getElementById("inv-eta");
     if (etaEl) etaEl.textContent = "";
     weightHistory.length = 0;
+    // Clear session timer when hiding UI
+    if (sessionTimerId) {
+      clearInterval(sessionTimerId);
+      sessionTimerId = null;
+    }
   }
   if (visible && !sessionStartTime) {
     sessionStartTime = Date.now();
+  }
+  if (visible) {
     startSessionTimer();
   }
   if (!visible && sessionStartTime && (sessionTotalMined > 0 || sessionExchangeCount > 0)) {
@@ -1100,40 +1135,44 @@ function initializeSettingsMenu() {
   settingsBtn.onclick = null;
 
   // Capture phase ensures this runs before header drag handlers.
-  document.addEventListener("mousedown", (event) => {
+  settingsButtonMouseDownHandler = (event) => {
     if (event.button !== 0) return;
     if (!event.target.closest("#settingsBtn")) return;
     event.preventDefault();
     event.stopPropagation();
     if (event.stopImmediatePropagation) event.stopImmediatePropagation();
     toggleSettingsMenu();
-  }, true);
+  };
+  document.addEventListener("mousedown", settingsButtonMouseDownHandler, true);
 
-  settingsMenu.addEventListener("click", (event) => {
+  settingsMenuClickHandler = (event) => {
     event.stopPropagation();
-  });
+  };
+  settingsMenu.addEventListener("click", settingsMenuClickHandler);
 
   if (settingsMenuHeader) {
     settingsMenuHeader.addEventListener("mousedown", startSettingsDragging);
   }
 
   if (settingsCloseBtn) {
-    settingsCloseBtn.addEventListener("mousedown", (event) => {
+    settingsCloseButtonMouseDownHandler = (event) => {
       if (event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
       closeSettingsMenu();
-    });
+    };
+    settingsCloseBtn.addEventListener("mousedown", settingsCloseButtonMouseDownHandler);
   }
 
   document.addEventListener("mousemove", dragSettings);
   document.addEventListener("mouseup", stopSettingsDragging);
 
-  document.addEventListener("mousedown", (event) => {
+  closeMenuOnDocumentMouseDownHandler = (event) => {
     if (isSettingsDragging || settingsMenu.hidden) return;
     if (event.target.closest("#settingsMenu") || event.target.closest("#settingsBtn")) return;
     closeSettingsMenu();
-  });
+  };
+  document.addEventListener("mousedown", closeMenuOnDocumentMouseDownHandler);
 }
 
 function closeSettingsMenu() {
@@ -1767,6 +1806,53 @@ function requestInitialData() {
   }
 }
 
+function cleanupEventListeners() {
+  // Remove keydown listener
+  if (escapeListener) {
+    window.removeEventListener('keydown', escapeListener);
+  }
+  
+  // Remove visibility and unload listeners
+  document.removeEventListener("visibilitychange", syncTrackerAutoPoll);
+  
+  // Remove drag listeners
+  document.removeEventListener("mousemove", drag);
+  document.removeEventListener("mouseup", stopDragging);
+  
+  // Remove header double-click listener
+  const header = document.querySelector(".dashboard-header");
+  if (header && headerDoubleClickHandler) {
+    header.removeEventListener("dblclick", headerDoubleClickHandler);
+  }
+  
+  // Remove settings menu listeners
+  if (settingsButtonMouseDownHandler) {
+    document.removeEventListener("mousedown", settingsButtonMouseDownHandler, true);
+  }
+  
+  const settingsMenu = document.getElementById("settingsMenu");
+  if (settingsMenu && settingsMenuClickHandler) {
+    settingsMenu.removeEventListener("click", settingsMenuClickHandler);
+  }
+  
+  const settingsMenuHeader = document.getElementById("settingsMenuHeader");
+  if (settingsMenuHeader) {
+    settingsMenuHeader.removeEventListener("mousedown", startSettingsDragging);
+  }
+  
+  const settingsCloseBtn = document.getElementById("settingsCloseBtn");
+  if (settingsCloseBtn && settingsCloseButtonMouseDownHandler) {
+    settingsCloseBtn.removeEventListener("mousedown", settingsCloseButtonMouseDownHandler);
+  }
+  
+  document.removeEventListener("mousemove", dragSettings);
+  document.removeEventListener("mouseup", stopSettingsDragging);
+  
+  if (closeMenuOnDocumentMouseDownHandler) {
+    document.removeEventListener("mousedown", closeMenuOnDocumentMouseDownHandler);
+  }
+}
+
 window.addEventListener("message", (event) => {
   const envelope = event.data;
   if (!envelope || typeof envelope !== "object") return;
@@ -1826,15 +1912,32 @@ window.addEventListener("message", (event) => {
 
       if (menuOpen) {
         resetReopenBackoff();
-        setTimeout(() => tryAutoVoucherExchange(), 100);
+        if (!isExchangeScheduled) {
+          isExchangeScheduled = true;
+          setTimeout(() => {
+            tryAutoVoucherExchange();
+            isExchangeScheduled = false;
+          }, 100);
+        }
       }
     } else {
       window.state.cache[key] = value;
     }
   }
 
+<<<<<<< Updated upstream
   if (data.menu_choices && window.state.cache.menu_open && !isExchanging && data.menu_open === undefined) {
     setTimeout(() => tryAutoVoucherExchange(), 100);
+=======
+  if (data.menu_choices && window.state.cache.menu_open && !isExchanging && data.menu_open == null) {
+    if (!isExchangeScheduled) {
+      isExchangeScheduled = true;
+      setTimeout(() => {
+        tryAutoVoucherExchange();
+        isExchangeScheduled = false;
+      }, 100);
+    }
+>>>>>>> Stashed changes
   }
 
   const rawJob = data.job ?? data.job_name ?? data.job_title ?? data.jobName ?? data.jobTitle;
@@ -1953,7 +2056,7 @@ window.onload = () => {
 
   startDataHealthMonitor();
 
-  const escapeListener = (e) => {
+  escapeListener = (e) => {
 
     if (e.key === "Escape") {
 
@@ -1973,7 +2076,10 @@ window.onload = () => {
 
   window.addEventListener('keydown', escapeListener);
   document.addEventListener("visibilitychange", syncTrackerAutoPoll);
-  window.addEventListener("beforeunload", stopTrackerAutoPoll);
+  window.addEventListener("beforeunload", () => {
+    stopTrackerAutoPoll();
+    cleanupEventListeners();
+  });
 
   startWaitingStateTimer();
 
