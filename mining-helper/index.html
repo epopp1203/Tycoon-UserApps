@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mining Dashboard</title>
   <link rel="stylesheet" href="style.css" />
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
 </head>
 <body>
   <div class="dashboard-container" id="draggableWindow">
@@ -13,7 +12,7 @@
       <div class="header-content">
         <div class="header-top">
           <div class="header-title">
-            <i class="fas fa-pickaxe"></i>
+            <span class="icon" aria-hidden="true">&#x26CF;</span>
             <span>Mining Helper Reborn</span>
           </div>
           <div id="minimized-stats" class="minimized-stats"></div>
@@ -23,13 +22,13 @@
           <div class="header-actions">
             <button class="btn-autoexchange active" id="autoExchangeBtn" title="Auto Convert" data-tooltip="Auto Convert">Auto Convert</button>
             <button class="btn-settings" id="settingsBtn" title="Settings" data-tooltip="Settings">
-              <i class="fas fa-gear"></i>
+              <span class="icon" aria-hidden="true">&#x2699;</span>
             </button>
             <button class="btn-mute" id="muteBtn" title="Sound" data-tooltip="Sound">
-              <i class="fas fa-volume-up"></i>
+              <span class="icon" aria-hidden="true">&#x1F50A;</span>
             </button>
             <button class="btn-minimize" id="minimizeBtn" title="Toggle Minimize" data-tooltip="Toggle Minimize">
-              <i class="fas fa-minus"></i>
+              <span class="icon" aria-hidden="true">&#x2212;</span>
             </button>
           </div>
         </div>
@@ -42,11 +41,11 @@
           <div class="inventory-card">
             <div class="inventory-header">
               <div class="header-left">
-                <i class="fas fa-backpack"></i>
+                <span class="icon" aria-hidden="true">&#x1F392;</span>
                 <span>Inventory</span>
               </div>
               <div class="threshold-container" title="Alert Threshold">
-                <i class="fas fa-bell"></i>
+                <span class="icon" aria-hidden="true">&#x1F514;</span>
                 <select id="thresholdSelect" class="threshold-dropdown">
                   <option value="50">50%</option>
                   <option value="55">55%</option>
@@ -74,14 +73,14 @@
                 </span>
               </div>
               <div id="waiting-state" class="waiting-state" hidden>
-                <i class="fas fa-circle-notch fa-spin"></i>
+                <span class="icon" aria-hidden="true">&#x25CC;</span>
                 <span>Waiting for data...</span>
               </div>
               <div id="alert-warning-badge" class="inventory-warning" hidden>Inventory high</div>
             </div>
           </div>
         </div>
-        
+
         <div class="bxp-section">
           <div class="bxp-card">
             <div class="bxp-simple">
@@ -94,7 +93,7 @@
         <div class="xp-stats-section">
           <div class="xp-stats-card">
             <div class="xp-stats-header">
-              <i class="fas fa-bolt"></i>
+              <span class="icon" aria-hidden="true">&#x26A1;</span>
               <span>Mining XP</span>
             </div>
             <div class="xp-stats-row">
@@ -129,20 +128,20 @@
         <div class="ore-card copper-card">
           <div class="ore-header">
             <div class="ore-icon">
-              <i class="fas fa-cube"></i>
+              <span class="icon" aria-hidden="true">&#x25C6;</span>
             </div>
             <div class="ore-title">
               <h3>Copper Ore</h3>
               <span class="ore-subtitle">Mining Progress</span>
             </div>
           </div>
-          
+
           <div class="ore-stats">
             <div class="stat-item main-stat">
               <div class="stat-value" id="copper-total">0</div>
               <div class="stat-label">Total Ore</div>
             </div>
-            
+
             <div class="stat-row">
               <div class="stat-item">
                 <div class="stat-value" id="copper-vouchers">0</div>
@@ -163,20 +162,20 @@
         <div class="ore-card iron-card">
           <div class="ore-header">
             <div class="ore-icon">
-              <i class="fas fa-cube"></i>
+              <span class="icon" aria-hidden="true">&#x25C6;</span>
             </div>
             <div class="ore-title">
               <h3>Iron Ore</h3>
               <span class="ore-subtitle">Mining Progress</span>
             </div>
           </div>
-          
+
           <div class="ore-stats">
             <div class="stat-item main-stat">
               <div class="stat-value" id="iron-total">0</div>
               <div class="stat-label">Total Ore</div>
             </div>
-            
+
             <div class="stat-row">
               <div class="stat-item">
                 <div class="stat-value" id="iron-vouchers">0</div>
@@ -197,33 +196,33 @@
 
       <div class="performance-section">
         <div class="section-header">
-          <i class="fas fa-chart-line"></i>
+          <span class="icon" aria-hidden="true">&#x1F4C8;</span>
           <span>Performance Metrics</span>
         </div>
         <div class="metrics-grid">
           <div class="metric-card">
             <div class="metric-icon">
-              <i class="fas fa-clock"></i>
+              <span class="icon" aria-hidden="true">&#x25F7;</span>
             </div>
             <div class="metric-content">
               <div class="metric-value" id="session-time">00:00:00</div>
               <div class="metric-label">Session Time</div>
             </div>
           </div>
-          
+
           <div class="metric-card">
             <div class="metric-icon">
-              <i class="fas fa-fire"></i>
+              <span class="icon" aria-hidden="true">&#x1F525;</span>
             </div>
             <div class="metric-content">
               <div class="metric-value" id="total-mined">0</div>
               <div class="metric-label">Total Mined</div>
             </div>
           </div>
-          
+
           <div class="metric-card">
             <div class="metric-icon">
-              <i class="fas fa-coins"></i>
+              <span class="icon" aria-hidden="true">&#x25C9;</span>
             </div>
             <div class="metric-content">
               <div class="metric-value" id="total-vouchers">0</div>
@@ -232,7 +231,7 @@
           </div>
           <div class="metric-card">
             <div class="metric-icon">
-              <i class="fas fa-exchange-alt"></i>
+              <span class="icon" aria-hidden="true">&#x21C4;</span>
             </div>
             <div class="metric-content">
               <div class="metric-value" id="total-exchanges">0</div>
@@ -246,9 +245,9 @@
 
   <div id="settingsMenu" class="settings-menu" hidden>
     <div class="settings-menu-header" id="settingsMenuHeader">
-      <span><i class="fas fa-sliders-h"></i> Settings</span>
+      <span><span class="icon" aria-hidden="true">&#x2637;</span> Settings</span>
       <button class="btn-settings-close" id="settingsCloseBtn" title="Close Settings" data-tooltip="Close Settings" aria-label="Close Settings">
-        <i class="fas fa-xmark"></i>
+        <span class="icon" aria-hidden="true">&#x00D7;</span>
       </button>
     </div>
     <div class="settings-row">
@@ -269,25 +268,25 @@
     <div class="settings-row">
       <span class="settings-label">Reset Session</span>
       <button class="btn-reset" id="resetSessionBtn" title="Reset: Clear session stats" data-tooltip="Reset: Clear session stats">
-        <i class="fas fa-rotate-left"></i>
+        <span class="icon" aria-hidden="true">&#x21B6;</span>
       </button>
     </div>
     <div class="settings-row">
       <span class="settings-label">Copy Summary</span>
       <button class="btn-copy" id="copySummaryBtn" title="Copy: Session summary" data-tooltip="Copy: Session summary">
-        <i class="fas fa-copy"></i>
+        <span class="icon" aria-hidden="true">&#x29C9;</span>
       </button>
     </div>
     <div class="settings-row">
       <span class="settings-label">Opacity</span>
       <button class="btn-opacity" id="opacityBtn" title="Opacity: Cycle panel transparency" data-tooltip="Opacity: Cycle panel transparency">
-        <i class="fas fa-adjust"></i>
+        <span class="icon" aria-hidden="true">&#x25D0;</span>
       </button>
     </div>
     <div class="settings-row">
       <span class="settings-label">Layout</span>
       <button class="btn-layout" id="layoutBtn" title="Layout: Toggle vertical/horizontal" data-tooltip="Layout: Toggle vertical/horizontal">
-        <i class="fas fa-arrows-alt-h"></i>
+        <span class="icon" aria-hidden="true">&#x21C6;</span>
       </button>
     </div>
     <div class="settings-row">
@@ -306,7 +305,7 @@
 
   <audio id="alertSound" src="Alert.mp3" preload="auto"></audio>
   <div id="session-toast" class="session-toast" hidden>
-    <div class="toast-title"><i class="fas fa-chart-bar"></i> Session Summary</div>
+    <div class="toast-title"><span class="icon" aria-hidden="true">&#x25A3;</span> Session Summary</div>
     <div class="toast-body" id="toast-body"></div>
   </div>
   <script src="mining-tracker.js"></script>

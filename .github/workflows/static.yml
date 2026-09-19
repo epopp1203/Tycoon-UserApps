@@ -23,6 +23,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate mining helper JavaScript
+        run: node --check mining-helper/mining-tracker.js
+
+      - name: Run mining helper protocol tests
+        run: node mining-helper/tests/protocol.test.js
       
       - name: Setup Pages
         uses: actions/configure-pages@v4
