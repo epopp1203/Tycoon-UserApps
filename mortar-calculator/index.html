@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Target Distance Calculator</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <div class="card calculator-card">
+        <div class="top-bar">
+          <h1>Target Distance</h1>
+
+          <div class="theme-toggle" aria-label="Theme selector">
+            <button class="theme-btn" type="button" data-theme="system">System</button>
+            <button class="theme-btn" type="button" data-theme="light">Light</button>
+            <button class="theme-btn" type="button" data-theme="dark">Dark</button>
+            <button class="theme-btn" type="button" data-theme="ocean">Ocean</button>
+            <button class="theme-btn" type="button" data-theme="night-ops">Night Ops</button>
+            <button class="theme-btn" type="button" data-theme="desert-ops">Desert Ops</button>
+            <button class="theme-btn" type="button" data-theme="wardogs">WarDogs</button>
+          </div>
+        </div>
+
+        <div class="formula-box">
+          <span class="formula-label">Distance formula</span>
+          <div class="formula">A² + B² = C²</div>
+        </div>
+
+        <div class="weapon-accordion">
+          <details class="weapon-section" open>
+            <summary>
+              <span>L-81 Mortar</span>
+              <span class="range-pill">Warning over 6.30 m / 630 m</span>
+            </summary>
+
+            <div class="weapon-content">
+              <form id="distance-form" class="form-grid single-column-form">
+                <section class="point-panel coordinate-panel">
+                  <h2>Point A (You)</h2>
+                  <label>
+                    Paste coordinates
+                    <input id="a-coords" type="text" value="x98.43, y110.38" placeholder="x98.43, y110.38" spellcheck="false" autocomplete="off" autofocus />
+                  </label>
+                </section>
+
+                <section class="point-panel coordinate-panel">
+                  <h2>Point B (Target)</h2>
+                  <label>
+                    Paste coordinates
+                    <input id="b-coords" type="text" value="x94.53, y109.03" placeholder="x94.53, y109.03" spellcheck="false" autocomplete="off" />
+                  </label>
+                </section>
+
+                <div class="actions">
+                  <button type="button" id="sample-btn" class="secondary-btn">Use sample values</button>
+                  <button type="button" id="clear-btn" class="secondary-btn">Clear</button>
+                  <button type="button" id="share-btn" class="primary-btn">Copy share link</button>
+                </div>
+                <p class="input-hint">Accepts <code>x98.43, y110.38</code>, <code>X: 98.43 Y: 110.38</code>, or two plain numbers.</p>
+              </form>
+
+              <div class="result-box mortar-result-box" id="result-box" aria-live="polite">
+                <span class="result-label">Distance</span>
+                <div id="result" class="result-value">4.13 m</div>
+                <div id="warning-text" class="warning-text hidden">Warning: over 6.30 m (630m relationship)</div>
+                <div id="distance-relation" class="distance-relation">0.00 m is 0.00% of the 630 m mortar maximum.</div>
+
+                <div class="range-meter-wrap mortar-meter-wrap">
+                  <div class="range-meter-labels">
+                    <span>0 m</span>
+                    <span>630 m</span>
+                  </div>
+                  <div class="range-meter-track">
+                    <div id="range-meter-fill" class="range-meter-fill"></div>
+                    <div id="range-meter-marker" class="range-meter-marker"></div>
+                  </div>
+                </div>
+              </div>
+
+              <section class="history-panel" aria-labelledby="history-title">
+                <div class="history-heading">
+                  <h2 id="history-title">Recent calculations</h2>
+                  <button type="button" id="clear-history-btn" class="text-btn">Clear history</button>
+                </div>
+                <p id="history-empty" class="history-empty">Your recent calculations will appear here on this device.</p>
+                <div id="history-list" class="history-list"></div>
+              </section>
+            </div>
+          </details>
+
+          <details class="weapon-section">
+            <summary>
+              <span>Artillery</span>
+              <span class="range-pill">730 m to 2,630 m</span>
+            </summary>
+
+            <div class="weapon-content artillery-content">
+              <div class="range-row">
+                <span>Minimum</span>
+                <strong>730 m</strong>
+              </div>
+              <div class="range-row">
+                <span>Maximum</span>
+                <strong>2,630 m</strong>
+              </div>
+              <div id="artillery-status" class="range-status">Status: Outside artillery range</div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
