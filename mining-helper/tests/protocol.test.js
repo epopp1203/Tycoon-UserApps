@@ -55,6 +55,8 @@ const documentObject = {
 };
 
 const storage = new Map();
+const timers = new Map();
+let nextTimerId = 1;
 const context = {
   window: windowObject,
   document: documentObject,
@@ -63,7 +65,8 @@ const context = {
     setItem(key, value) { storage.set(key, String(value)); },
     removeItem(key) { storage.delete(key); }
   },
-  console,
+  // Isolated so the tracker's console silencing doesn't swallow test output.
+  console: Object.create(console),
   Date,
   JSON,
   Math,
@@ -75,8 +78,12 @@ const context = {
   isFinite,
   requestAnimationFrame() { return 1; },
   cancelAnimationFrame() {},
-  setTimeout() { return 1; },
-  clearTimeout() {},
+  setTimeout(callback) {
+    const id = nextTimerId++;
+    timers.set(id, callback);
+    return id;
+  },
+  clearTimeout(id) { timers.delete(id); },
   setInterval() { return 1; },
   clearInterval() {}
 };
@@ -89,9 +96,22 @@ function send(data) {
   }
 }
 
+async function flushTimers() {
+  for (let i = 0; i < 100 && timers.size > 0; i++) {
+    const [id, callback] = timers.entries().next().value;
+    timers.delete(id);
+    callback();
+    await new Promise(resolve => setImmediate(resolve));
+  }
+}
+
+function countPosted(type) {
+  return postedMessages.filter(message => message.type === type).length;
+}
+
+(async () => {
 send({
-  focused: true,
-  tabbed: true,
+  hidden: false,
   job: "miner",
   weight: 12,
   max_weight: 100,
@@ -113,20 +133,41 @@ assert.equal(
 );
 
 assert.doesNotThrow(() => send({}));
+await flushTimers();
 
+// Closed app must not drive the game menu.
 postedMessages.length = 0;
 send({
-  focused: false,
-  tabbed: true,
+  hidden: true,
   menu_open: true,
   menu_choices: [["Exchange Copper Ore"]],
   inventory: JSON.stringify({ mining_copper: { amount: 2 } }),
   weight: 22,
   max_weight: 100
 });
+await flushTimers();
 assert.equal(postedMessages.length, 0);
 
-send({ focused: true, tabbed: false });
+send({ focused: true });
+await flushTimers();
 assert.equal(postedMessages.length, 0);
+
+// Pinned (visible but unfocused) is the normal mining state and must still auto-exchange.
+postedMessages.length = 0;
+send({
+  hidden: false,
+  focused: false,
+  menu_open: true,
+  menu_choices: [["Exchange Copper Ore"]],
+  inventory: JSON.stringify({ mining_copper: { amount: 2 } }),
+  weight: 22,
+  max_weight: 100
+});
+await flushTimers();
+assert.equal(countPosted("forceMenuChoice"), 2);
 
 console.log("Mining helper protocol tests passed.");
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});

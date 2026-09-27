@@ -16,7 +16,6 @@ let lastWeight = null;
 let lastMaxWeight = null;
 let lastInventoryObj = null;
 let lastMiningXp = null;
-let lastMiningXpUpdatedAt = 0;
 let lastRenderedMiningXp = null;
 let xpUpdateFlashTimer = null;
 let sessionToastTimer = null;
@@ -339,8 +338,7 @@ const INITIAL_DATA_KEYS = [
   "menu_open",
   "menu_choices",
   "exp_farming_mining",
-  "focused",
-  "tabbed"
+  "hidden"
 ];
 
 const ORE_KEYS = ["mining_copper", "mining_iron"];
@@ -772,6 +770,7 @@ function stopSettingsDragging() {
 function toggleUI(visible) {
   const container = document.getElementById("draggableWindow");
   if (!container) return;
+  const wasVisible = container.style.display === "block";
   container.style.display = visible ? "block" : "none";
   updateInteractionUI();
   if (!visible) {
@@ -797,7 +796,7 @@ function toggleUI(visible) {
     startSessionTimer();
     startDataHealthMonitor();
   }
-  if (!visible && sessionStartTime && (sessionTotalMined > 0 || sessionExchangeCount > 0)) {
+  if (!visible && wasVisible && sessionStartTime && (sessionTotalMined > 0 || sessionExchangeCount > 0)) {
     showSessionSummary();
   }
 }
@@ -829,7 +828,7 @@ function updateInventoryWarningState(isWarning) {
 
 function playInventoryAlertSound() {
   const panel = document.getElementById("draggableWindow");
-  if (isMuted || !isMinerJob || !panel || panel.style.display === "none" || !isAppInteractive()) return;
+  if (isMuted || !isMinerJob || !panel || panel.style.display === "none" || !isAppActive()) return;
   const now = Date.now();
   if (now - lastAlertPlayedAt < ALERT_COOLDOWN_MS) return;
   const alertAudio = document.getElementById('alertSound');
@@ -866,14 +865,14 @@ function initializeAlertSettings() {
 function updateMuteUI() {
   const muteBtn = document.getElementById("muteBtn");
   if (!muteBtn) return;
-  const icon = muteBtn.querySelector("i");
+  const icon = muteBtn.querySelector(".icon");
   if (isMuted) {
     muteBtn.classList.add("muted");
-    icon.className = "fas fa-volume-mute";
+    if (icon) icon.textContent = "\u{1F507}";
     muteBtn.setAttribute("data-tooltip", "Sound Muted");
   } else {
     muteBtn.classList.remove("muted");
-    icon.className = "fas fa-volume-up";
+    if (icon) icon.textContent = "\u{1F50A}";
     muteBtn.setAttribute("data-tooltip", "Sound On");
   }
 }
@@ -1354,23 +1353,15 @@ function updateMiningXP() {
   if (barEl)     barEl.style.width     = barPct.toFixed(1) + "%";
 }
 
-function isAppInteractive() {
-  return hasInteractionState
-    && window.state.cache.focused === true
-    && window.state.cache.tabbed === true;
+// The app is normally pinned (not focused) while mining, so only a closed app counts as inactive.
+function isAppActive() {
+  return window.state.cache.hidden !== true;
 }
 
 function updateInteractionUI() {
   const container = document.getElementById("draggableWindow");
   if (!container) return;
-  container.classList.toggle("inactive", !hasInitialized || (hasInteractionState && !isAppInteractive()));
-}
-
-function isTrackerPanelOpenAndVisible() {
-  const panel = document.getElementById("draggableWindow");
-  if (!panel || panel.style.display === "none") return false;
-  if (!isMinerJob) return false;
-  return document.visibilityState !== "hidden" && isAppInteractive();
+  container.classList.toggle("inactive", !hasInitialized || (hasInteractionState && !isAppActive()));
 }
 
 function initializeXpToggle() {
@@ -1470,7 +1461,7 @@ function startWaitingStateTimer() {
 
 function checkInventoryThreshold(percentage) {
   const panel = document.getElementById("draggableWindow");
-  if (!isMinerJob || !panel || panel.style.display === "none" || !isAppInteractive()) {
+  if (!isMinerJob || !panel || panel.style.display === "none" || !isAppActive()) {
     inventoryAlertTriggered = false;
     updateInventoryWarningState(false);
     return;
@@ -1729,7 +1720,7 @@ function resetReopenBackoff() {
 }
 
 async function tryAutoVoucherExchange() {
-  if (!autoExchangeEnabled || !isAppInteractive()) return;
+  if (!autoExchangeEnabled || !isAppActive()) return;
   const choices = window.state.cache.menu_choices ?? [];
   const inv = lastInventoryObj;
   
@@ -1751,7 +1742,7 @@ async function tryAutoVoucherExchange() {
   if ((needsIronSingle || needsCopperSingle) && shouldReopenMenu()) {
     window.parent.postMessage({ type: "forceMenuBack" }, "*");
     await new Promise(resolve => scheduleTimeout(resolve, 300));
-    if (!isAppInteractive()) return;
+    if (!isAppActive()) return;
     window.parent.postMessage({ type: "sendCommand", command: "vrp-reopen" }, "*");
     isExchanging = false;
     return;
@@ -1767,7 +1758,7 @@ async function tryAutoVoucherExchange() {
     if (option) {
       window.parent.postMessage({ type: 'forceMenuChoice', choice: option, mod: 0 }, '*');
       await new Promise(resolve => scheduleTimeout(resolve, 500));
-      if (!isAppInteractive()) return false;
+      if (!isAppActive()) return false;
       exchangeCount += 1;
       return true;
     }
@@ -1950,10 +1941,7 @@ window.addEventListener("message", (event) => {
     (data.cache && typeof data.cache === "object" && Object.prototype.hasOwnProperty.call(data.cache, "inventory"))
   );
   const hasXpField = Object.prototype.hasOwnProperty.call(data, "exp_farming_mining");
-  const hasInteractionField = (
-    Object.prototype.hasOwnProperty.call(data, "focused") ||
-    Object.prototype.hasOwnProperty.call(data, "tabbed")
-  );
+  const hasInteractionField = Object.prototype.hasOwnProperty.call(data, "hidden");
 
   const hasJobField = (
     Object.prototype.hasOwnProperty.call(data, "job") ||
@@ -2044,7 +2032,6 @@ window.addEventListener("message", (event) => {
   if (typeof data.max_weight === "number") lastMaxWeight = data.max_weight;
   if (typeof data["exp_farming_mining"] === "number") {
     lastMiningXp = data["exp_farming_mining"];
-    lastMiningXpUpdatedAt = Date.now();
     updateMiningXP();
   }
 
@@ -2069,7 +2056,7 @@ window.addEventListener("message", (event) => {
     clearScheduledTimeout(hudDebounceTimer);
     hudDebounceTimer = scheduleTimeout(() => updateHUD(lastWeight, lastMaxWeight), 100);
     
-    if (!isExchanging && autoExchangeEnabled && isAppInteractive()) {
+    if (!isExchanging && autoExchangeEnabled && isAppActive()) {
       const ironAmount = invObj["mining_iron"]?.amount ?? 0;
       const copperAmount = invObj["mining_copper"]?.amount ?? 0;
 
@@ -2082,7 +2069,7 @@ window.addEventListener("message", (event) => {
           if (!hasReopenedForLeftovers && shouldReopenMenu()) {
             hasReopenedForLeftovers = true;
             scheduleTimeout(() => {
-              if (!isAppInteractive()) return;
+              if (!isAppActive()) return;
               window.parent.postMessage({ type: "sendCommand", command: "vrp-reopen" }, "*");
             }, 500);
           }
@@ -2098,10 +2085,10 @@ window.addEventListener("message", (event) => {
 
           if ((needsIronSingle || needsCopperSingle) && shouldReopenMenu()) {
             scheduleTimeout(() => {
-              if (!isAppInteractive()) return;
+              if (!isAppActive()) return;
               window.parent.postMessage({ type: "forceMenuBack" }, "*");
               scheduleTimeout(() => {
-                if (!isAppInteractive()) return;
+                if (!isAppActive()) return;
                 window.parent.postMessage({ type: "sendCommand", command: "vrp-reopen" }, "*");
               }, 300);
             }, 100);
