@@ -16,9 +16,9 @@ let lastWeight = null;
 let lastMaxWeight = null;
 let lastInventoryObj = null;
 let lastMiningXp = null;
-let lastMiningXpUpdatedAt = 0;
 let lastRenderedMiningXp = null;
 let xpUpdateFlashTimer = null;
+let sessionToastTimer = null;
 let sessionStartTime = null;
 let sessionTimerId = null;
 let isMinimized = false;
@@ -325,16 +325,21 @@ let lastOreGainAt = null;
 let lastCopperAmount = null;
 let lastIronAmount = null;
 
-// NEW: one-shot initial request + capped retry
+// One-shot initial request + capped retry
 let hasRequestedInitialData = false;
 let initialDataRetryTimer = null;
 let initialDataRetries = 0;
 const MAX_INITIAL_RETRIES = 3;
-let trackerPollTimerId = null;
-let lastTrackerRequestAt = 0;
-const TRACKER_POLL_INTERVAL_MS = 30000;
-const TRACKER_REQUEST_COOLDOWN_MS = 4000;
-const XP_STALE_REQUEST_MS = 20000;
+const INITIAL_DATA_KEYS = [
+  "job",
+  "inventory",
+  "weight",
+  "max_weight",
+  "menu_open",
+  "menu_choices",
+  "exp_farming_mining",
+  "hidden"
+];
 
 const ORE_KEYS = ["mining_copper", "mining_iron"];
 const oreLog = {
@@ -350,11 +355,16 @@ const RECENT_WINDOW_MS = 2 * 60 * 1000;
 window.state = { cache: {} };
 
 let isDragging = false;
+let dragFrameId = null;
+let pendingDragEvent = null;
 let dragStartX = 0;
 let dragStartY = 0;
 let windowStartX = 0;
 let windowStartY = 0;
 let isSettingsDragging = false;
+let settingsDragFrameId = null;
+let pendingSettingsDragEvent = null;
+let hasInteractionState = false;
 let settingsDragStartX = 0;
 let settingsDragStartY = 0;
 let settingsWindowStartX = 0;
@@ -368,6 +378,41 @@ let settingsButtonMouseDownHandler = null;
 let settingsMenuClickHandler = null;
 let settingsCloseButtonMouseDownHandler = null;
 let closeMenuOnDocumentMouseDownHandler = null;
+const scheduledTimeouts = new Set();
+
+function scheduleTimeout(callback, delay) {
+  const timeoutId = setTimeout(() => {
+    scheduledTimeouts.delete(timeoutId);
+    callback();
+  }, delay);
+  scheduledTimeouts.add(timeoutId);
+  return timeoutId;
+}
+
+function clearScheduledTimeout(timeoutId) {
+  if (!timeoutId) return;
+  clearTimeout(timeoutId);
+  scheduledTimeouts.delete(timeoutId);
+}
+
+function clearAllScheduledTimeouts() {
+  for (const timeoutId of scheduledTimeouts) {
+    clearTimeout(timeoutId);
+  }
+  scheduledTimeouts.clear();
+}
+
+function safeStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
+
+function safeStorageRemove(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch {}
+}
 
 function coerceMenuOpen(value) {
   if (typeof value === "boolean") return value;
@@ -452,7 +497,7 @@ function applyTheme(themeKey) {
   root.style.setProperty("--ui-status-bg", hexToRgba(accent, 0.2));
 
   activeTheme = selected;
-  localStorage.setItem("miningTracker_theme", selected);
+  safeStorageSet("miningTracker_theme", selected);
 
   const selectEl = document.getElementById("themeSelect");
   if (selectEl && selectEl.value !== selected) {
@@ -495,7 +540,7 @@ function initializeDragging() {
   
   headerDoubleClickHandler = (e) => {
     if (e.target.closest(".header-actions, button, select, input")) return;
-    localStorage.removeItem("miningTracker_position");
+    safeStorageRemove("miningTracker_position");
     draggableWindow.style.left = "20px";
     draggableWindow.style.top = "20px";
   };
@@ -535,14 +580,14 @@ function toggleLayout(save = true) {
   if (isHorizontal) {
     container.classList.add("horizontal");
     if (layoutBtn) {
-      layoutBtn.innerHTML = '<i class="fas fa-arrows-alt-v"></i>';
+      layoutBtn.textContent = "⇅";
       layoutBtn.title = "Layout: Toggle vertical/horizontal";
       layoutBtn.setAttribute("data-tooltip", "Layout: Horizontal now");
     }
   } else {
     container.classList.remove("horizontal");
     if (layoutBtn) {
-      layoutBtn.innerHTML = '<i class="fas fa-arrows-alt-h"></i>';
+      layoutBtn.textContent = "⇆";
       layoutBtn.title = "Layout: Toggle vertical/horizontal";
       layoutBtn.setAttribute("data-tooltip", "Layout: Vertical now");
     }
@@ -555,7 +600,7 @@ function toggleLayout(save = true) {
 
 function saveLayout() {
   const layout = isHorizontal ? "horizontal" : "vertical";
-  localStorage.setItem("miningTracker_layout", layout);
+  safeStorageSet("miningTracker_layout", layout);
 }
 
 function getSavedLayout() {
@@ -596,17 +641,23 @@ function clampPosition(x, y, el) {
 
 function drag(e) {
   if (!isDragging) return;
-  
-  const draggableWindow = document.getElementById("draggableWindow");
-  const deltaX = e.clientX - dragStartX;
-  const deltaY = e.clientY - dragStartY;
-  
-  const newX = windowStartX + deltaX;
-  const newY = windowStartY + deltaY;
+  pendingDragEvent = e;
+  if (dragFrameId !== null) return;
+  dragFrameId = requestAnimationFrame(() => {
+    dragFrameId = null;
+    const dragEvent = pendingDragEvent;
+    pendingDragEvent = null;
+    if (!isDragging || !dragEvent) return;
 
-  const clamped = clampPosition(newX, newY, draggableWindow);
-  draggableWindow.style.left = clamped.x + "px";
-  draggableWindow.style.top = clamped.y + "px";
+    const draggableWindow = document.getElementById("draggableWindow");
+    const deltaX = dragEvent.clientX - dragStartX;
+    const deltaY = dragEvent.clientY - dragStartY;
+    const newX = windowStartX + deltaX;
+    const newY = windowStartY + deltaY;
+    const clamped = clampPosition(newX, newY, draggableWindow);
+    draggableWindow.style.left = clamped.x + "px";
+    draggableWindow.style.top = clamped.y + "px";
+  });
 }
 
 function stopDragging() {
@@ -624,7 +675,7 @@ function savePosition() {
     y: rect.top
   };
   
-  localStorage.setItem("miningTracker_position", JSON.stringify(position));
+  safeStorageSet("miningTracker_position", JSON.stringify(position));
 }
 
 function getSavedPosition() {
@@ -644,7 +695,7 @@ function saveSettingsPosition() {
     x: rect.left,
     y: rect.top
   };
-  localStorage.setItem("miningTracker_settingsPosition", JSON.stringify(position));
+  safeStorageSet("miningTracker_settingsPosition", JSON.stringify(position));
 }
 
 function getSavedSettingsPosition() {
@@ -690,19 +741,24 @@ function clampSettingsPosition(x, y, el) {
 
 function dragSettings(e) {
   if (!isSettingsDragging) return;
+  pendingSettingsDragEvent = e;
+  if (settingsDragFrameId !== null) return;
+  settingsDragFrameId = requestAnimationFrame(() => {
+    settingsDragFrameId = null;
+    const dragEvent = pendingSettingsDragEvent;
+    pendingSettingsDragEvent = null;
+    if (!isSettingsDragging || !dragEvent) return;
 
-  const settingsMenu = document.getElementById("settingsMenu");
-  if (!settingsMenu) return;
-
-  const deltaX = e.clientX - settingsDragStartX;
-  const deltaY = e.clientY - settingsDragStartY;
-
-  const newX = settingsWindowStartX + deltaX;
-  const newY = settingsWindowStartY + deltaY;
-
-  const clamped = clampSettingsPosition(newX, newY, settingsMenu);
-  settingsMenu.style.left = clamped.x + "px";
-  settingsMenu.style.top = clamped.y + "px";
+    const settingsMenu = document.getElementById("settingsMenu");
+    if (!settingsMenu) return;
+    const deltaX = dragEvent.clientX - settingsDragStartX;
+    const deltaY = dragEvent.clientY - settingsDragStartY;
+    const newX = settingsWindowStartX + deltaX;
+    const newY = settingsWindowStartY + deltaY;
+    const clamped = clampSettingsPosition(newX, newY, settingsMenu);
+    settingsMenu.style.left = clamped.x + "px";
+    settingsMenu.style.top = clamped.y + "px";
+  });
 }
 
 function stopSettingsDragging() {
@@ -714,7 +770,9 @@ function stopSettingsDragging() {
 function toggleUI(visible) {
   const container = document.getElementById("draggableWindow");
   if (!container) return;
+  const wasVisible = container.style.display === "block";
   container.style.display = visible ? "block" : "none";
+  updateInteractionUI();
   if (!visible) {
     closeSettingsMenu();
     container.classList.remove("ore-idle-alert");
@@ -727,17 +785,20 @@ function toggleUI(visible) {
       clearInterval(sessionTimerId);
       sessionTimerId = null;
     }
+    stopDataHealthMonitor();
+    inventoryAlertTriggered = false;
+    updateInventoryWarningState(false);
   }
   if (visible && !sessionStartTime) {
     sessionStartTime = Date.now();
   }
   if (visible) {
     startSessionTimer();
+    startDataHealthMonitor();
   }
-  if (!visible && sessionStartTime && (sessionTotalMined > 0 || sessionExchangeCount > 0)) {
+  if (!visible && wasVisible && sessionStartTime && (sessionTotalMined > 0 || sessionExchangeCount > 0)) {
     showSessionSummary();
   }
-  syncTrackerAutoPoll();
 }
 
 function startSessionTimer() {
@@ -766,7 +827,8 @@ function updateInventoryWarningState(isWarning) {
 }
 
 function playInventoryAlertSound() {
-  if (isMuted) return; // Exit if muted
+  const panel = document.getElementById("draggableWindow");
+  if (isMuted || !isMinerJob || !panel || panel.style.display === "none" || !isAppActive()) return;
   const now = Date.now();
   if (now - lastAlertPlayedAt < ALERT_COOLDOWN_MS) return;
   const alertAudio = document.getElementById('alertSound');
@@ -786,7 +848,7 @@ function initializeAlertSettings() {
   if (muteBtn) {
     muteBtn.addEventListener("click", () => {
       isMuted = !isMuted;
-      localStorage.setItem("miningTracker_muted", isMuted);
+          safeStorageSet("miningTracker_muted", isMuted);
       updateMuteUI();
     });
   }
@@ -794,7 +856,7 @@ function initializeAlertSettings() {
   if (thresholdSelect) {
     thresholdSelect.addEventListener("change", (e) => {
       INVENTORY_ALERT_THRESHOLD = parseInt(e.target.value);
-      localStorage.setItem("miningTracker_threshold", INVENTORY_ALERT_THRESHOLD);
+      safeStorageSet("miningTracker_threshold", INVENTORY_ALERT_THRESHOLD);
     });
   }
 }
@@ -803,14 +865,14 @@ function initializeAlertSettings() {
 function updateMuteUI() {
   const muteBtn = document.getElementById("muteBtn");
   if (!muteBtn) return;
-  const icon = muteBtn.querySelector("i");
+  const icon = muteBtn.querySelector(".icon");
   if (isMuted) {
     muteBtn.classList.add("muted");
-    icon.className = "fas fa-volume-mute";
+    if (icon) icon.textContent = "\u{1F507}";
     muteBtn.setAttribute("data-tooltip", "Sound Muted");
   } else {
     muteBtn.classList.remove("muted");
-    icon.className = "fas fa-volume-up";
+    if (icon) icon.textContent = "\u{1F50A}";
     muteBtn.setAttribute("data-tooltip", "Sound On");
   }
 }
@@ -825,7 +887,7 @@ function saveSessionData() {
       exchangeCount: sessionExchangeCount,
       timestamp: Date.now()
     };
-    localStorage.setItem("miningTracker_session", JSON.stringify(data));
+    safeStorageSet("miningTracker_session", JSON.stringify(data));
   } catch {}
 }
 
@@ -835,7 +897,7 @@ function loadSessionData() {
     if (!saved) return;
     const data = JSON.parse(saved);
     if (Date.now() - data.timestamp > SESSION_TTL_MS) {
-      localStorage.removeItem("miningTracker_session");
+      safeStorageRemove("miningTracker_session");
       return;
     }
     sessionStartTime = data.startTime || null;
@@ -864,7 +926,7 @@ function resetSessionMetrics() {
   }
 
   try {
-    localStorage.removeItem("miningTracker_session");
+    safeStorageRemove("miningTracker_session");
   } catch {}
 
   const exchEl = document.getElementById("total-exchanges");
@@ -997,6 +1059,12 @@ function startDataHealthMonitor() {
   dataHealthTimerId = setInterval(updateDataHealthStatus, 1000);
 }
 
+function stopDataHealthMonitor() {
+  if (!dataHealthTimerId) return;
+  clearInterval(dataHealthTimerId);
+  dataHealthTimerId = null;
+}
+
 function showSessionSummary() {
   const elapsed = Date.now() - sessionStartTime;
   const hours = Math.floor(elapsed / 3600000);
@@ -1007,14 +1075,21 @@ function showSessionSummary() {
   const toast = document.getElementById("session-toast");
   const body = document.getElementById("toast-body");
   if (toast && body) {
-    body.innerHTML = `
-      <div>Time: ${timeStr}</div>
-      <div>Mined: ${sessionTotalMined.toLocaleString()}</div>
-      <div>Vouchers: ${(copperVouchers + ironVouchers).toLocaleString()}</div>
-      <div>Exchanges: ${sessionExchangeCount.toLocaleString()}</div>
-    `;
+    body.replaceChildren();
+    const summary = [
+      ["Time", timeStr],
+      ["Mined", sessionTotalMined.toLocaleString()],
+      ["Vouchers", (copperVouchers + ironVouchers).toLocaleString()],
+      ["Exchanges", sessionExchangeCount.toLocaleString()]
+    ];
+    for (const [label, value] of summary) {
+      const row = document.createElement("div");
+      row.textContent = `${label}: ${value}`;
+      body.appendChild(row);
+    }
     toast.hidden = false;
-    setTimeout(() => { toast.hidden = true; }, 6000);
+    clearScheduledTimeout(sessionToastTimer);
+    sessionToastTimer = scheduleTimeout(() => { toast.hidden = true; }, 6000);
   }
 }
 
@@ -1068,7 +1143,7 @@ function initializeAutoExchangeBtn() {
   updateAutoExchangeUI();
   btn.addEventListener("click", () => {
     autoExchangeEnabled = !autoExchangeEnabled;
-    localStorage.setItem("miningTracker_autoExchange", autoExchangeEnabled);
+    safeStorageSet("miningTracker_autoExchange", autoExchangeEnabled);
     updateAutoExchangeUI();
   });
 }
@@ -1202,7 +1277,7 @@ function initializeBxpToggle() {
   applyCardVisibility(".bxp-section", "toggleBxpBtn", showBxpCard, "Total BXP: Visible", "Total BXP: Hidden");
   btn.addEventListener("click", () => {
     showBxpCard = !showBxpCard;
-    localStorage.setItem("miningTracker_showBxp", showBxpCard);
+    safeStorageSet("miningTracker_showBxp", showBxpCard);
     applyCardVisibility(".bxp-section", "toggleBxpBtn", showBxpCard, "Total BXP: Visible", "Total BXP: Hidden");
   });
 }
@@ -1213,7 +1288,7 @@ function initializePerformanceToggle() {
   applyCardVisibility(".performance-section", "togglePerformanceBtn", showPerformanceCard, "Performance Metrics: Visible", "Performance Metrics: Hidden");
   btn.addEventListener("click", () => {
     showPerformanceCard = !showPerformanceCard;
-    localStorage.setItem("miningTracker_showPerformance", showPerformanceCard);
+    safeStorageSet("miningTracker_showPerformance", showPerformanceCard);
     applyCardVisibility(".performance-section", "togglePerformanceBtn", showPerformanceCard, "Performance Metrics: Visible", "Performance Metrics: Hidden");
   });
 }
@@ -1253,8 +1328,8 @@ function updateMiningXP() {
 
   if (lastRenderedMiningXp !== null && totalXp > lastRenderedMiningXp && xpCardEl) {
     xpCardEl.classList.add("xp-updated");
-    clearTimeout(xpUpdateFlashTimer);
-    xpUpdateFlashTimer = setTimeout(() => {
+    clearScheduledTimeout(xpUpdateFlashTimer);
+    xpUpdateFlashTimer = scheduleTimeout(() => {
       xpCardEl.classList.remove("xp-updated");
     }, 850);
   }
@@ -1278,48 +1353,15 @@ function updateMiningXP() {
   if (barEl)     barEl.style.width     = barPct.toFixed(1) + "%";
 }
 
-function isTrackerPanelOpenAndVisible() {
-  const panel = document.getElementById("draggableWindow");
-  if (!panel || panel.style.display === "none") return false;
-  if (!isMinerJob) return false;
-  return document.visibilityState !== "hidden";
+// The app is normally pinned (not focused) while mining, so only a closed app counts as inactive.
+function isAppActive() {
+  return window.state.cache.hidden !== true;
 }
 
-function requestTrackerData(force = false) {
-  const now = Date.now();
-  if (!force && now - lastTrackerRequestAt < TRACKER_REQUEST_COOLDOWN_MS) return false;
-  lastTrackerRequestAt = now;
-  window.parent.postMessage({ type: "getData" }, "*");
-  return true;
-}
-
-function maybePollTrackerData() {
-  if (!isTrackerPanelOpenAndVisible()) return;
-  const now = Date.now();
-  const dataAge = lastDataUpdateAt ? (now - lastDataUpdateAt) : Number.POSITIVE_INFINITY;
-  const xpAge = lastMiningXpUpdatedAt ? (now - lastMiningXpUpdatedAt) : Number.POSITIVE_INFINITY;
-  const shouldRequest = lastMiningXp === null || dataAge >= DATA_DELAYED_MS || xpAge >= XP_STALE_REQUEST_MS;
-  if (shouldRequest) requestTrackerData();
-}
-
-function startTrackerAutoPoll() {
-  if (trackerPollTimerId) return;
-  maybePollTrackerData();
-  trackerPollTimerId = setInterval(maybePollTrackerData, TRACKER_POLL_INTERVAL_MS);
-}
-
-function stopTrackerAutoPoll() {
-  if (!trackerPollTimerId) return;
-  clearInterval(trackerPollTimerId);
-  trackerPollTimerId = null;
-}
-
-function syncTrackerAutoPoll() {
-  if (isTrackerPanelOpenAndVisible()) {
-    startTrackerAutoPoll();
-  } else {
-    stopTrackerAutoPoll();
-  }
+function updateInteractionUI() {
+  const container = document.getElementById("draggableWindow");
+  if (!container) return;
+  container.classList.toggle("inactive", !hasInitialized || (hasInteractionState && !isAppActive()));
 }
 
 function initializeXpToggle() {
@@ -1328,7 +1370,7 @@ function initializeXpToggle() {
   applyCardVisibility(".xp-stats-section", "toggleXpBtn", showXpCard, "Mining XP: Visible", "Mining XP: Hidden");
   btn.addEventListener("click", () => {
     showXpCard = !showXpCard;
-    localStorage.setItem("miningTracker_showXp", showXpCard);
+    safeStorageSet("miningTracker_showXp", showXpCard);
     applyCardVisibility(".xp-stats-section", "toggleXpBtn", showXpCard, "Mining XP: Visible", "Mining XP: Hidden");
   });
 }
@@ -1390,7 +1432,7 @@ function initializeOpacityBtn() {
   if (!btn) return;
   btn.addEventListener("click", () => {
     opacityIndex = (opacityIndex + 1) % OPACITY_LEVELS.length;
-    localStorage.setItem("miningTracker_opacity", opacityIndex);
+    safeStorageSet("miningTracker_opacity", opacityIndex);
     applyOpacity();
   });
 }
@@ -1409,7 +1451,7 @@ function applyOpacity() {
 }
 
 function startWaitingStateTimer() {
-  waitingStateTimer = setTimeout(() => {
+  waitingStateTimer = scheduleTimeout(() => {
     if (!hasInitialized) {
       const ws = document.getElementById("waiting-state");
       if (ws) ws.hidden = false;
@@ -1418,6 +1460,12 @@ function startWaitingStateTimer() {
 }
 
 function checkInventoryThreshold(percentage) {
+  const panel = document.getElementById("draggableWindow");
+  if (!isMinerJob || !panel || panel.style.display === "none" || !isAppActive()) {
+    inventoryAlertTriggered = false;
+    updateInventoryWarningState(false);
+    return;
+  }
   const isWarning = percentage >= INVENTORY_ALERT_THRESHOLD;
 
   if (isWarning) {
@@ -1672,7 +1720,7 @@ function resetReopenBackoff() {
 }
 
 async function tryAutoVoucherExchange() {
-  if (!autoExchangeEnabled) return;
+  if (!autoExchangeEnabled || !isAppActive()) return;
   const choices = window.state.cache.menu_choices ?? [];
   const inv = lastInventoryObj;
   
@@ -1693,7 +1741,8 @@ async function tryAutoVoucherExchange() {
   
   if ((needsIronSingle || needsCopperSingle) && shouldReopenMenu()) {
     window.parent.postMessage({ type: "forceMenuBack" }, "*");
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(resolve => scheduleTimeout(resolve, 300));
+    if (!isAppActive()) return;
     window.parent.postMessage({ type: "sendCommand", command: "vrp-reopen" }, "*");
     isExchanging = false;
     return;
@@ -1708,7 +1757,8 @@ async function tryAutoVoucherExchange() {
     const option = choices.find(c => c[0]?.includes(label))?.[0];
     if (option) {
       window.parent.postMessage({ type: 'forceMenuChoice', choice: option, mod: 0 }, '*');
-      await new Promise(res => setTimeout(res, 500));
+      await new Promise(resolve => scheduleTimeout(resolve, 500));
+      if (!isAppActive()) return false;
       exchangeCount += 1;
       return true;
     }
@@ -1787,9 +1837,9 @@ async function tryAutoVoucherExchange() {
 
 function scheduleInitialRetry() {
   if (hasInitialized || initialDataRetries >= MAX_INITIAL_RETRIES) return;
-  clearTimeout(initialDataRetryTimer);
+  clearScheduledTimeout(initialDataRetryTimer);
   const delay = 3000 * Math.pow(2, initialDataRetries);
-  initialDataRetryTimer = setTimeout(() => {
+  initialDataRetryTimer = scheduleTimeout(() => {
     if (!hasInitialized) {
       initialDataRetries += 1;
       hasRequestedInitialData = false;
@@ -1800,10 +1850,9 @@ function scheduleInitialRetry() {
 
 function requestInitialData() {
   if (hasRequestedInitialData || hasInitialized) return;
-  if (requestTrackerData(true)) {
-    hasRequestedInitialData = true;
-    scheduleInitialRetry();
-  }
+  hasRequestedInitialData = true;
+  window.parent.postMessage({ type: "getNamedData", keys: INITIAL_DATA_KEYS }, "*");
+  scheduleInitialRetry();
 }
 
 function cleanupEventListeners() {
@@ -1812,8 +1861,24 @@ function cleanupEventListeners() {
     window.removeEventListener('keydown', escapeListener);
   }
   
-  // Remove visibility and unload listeners
-  document.removeEventListener("visibilitychange", syncTrackerAutoPoll);
+  // Stop all recurring and delayed work.
+  clearAllScheduledTimeouts();
+  if (dragFrameId !== null) {
+    cancelAnimationFrame(dragFrameId);
+    dragFrameId = null;
+  }
+  if (settingsDragFrameId !== null) {
+    cancelAnimationFrame(settingsDragFrameId);
+    settingsDragFrameId = null;
+  }
+  if (sessionTimerId) {
+    clearInterval(sessionTimerId);
+    sessionTimerId = null;
+  }
+  if (dataHealthTimerId) {
+    clearInterval(dataHealthTimerId);
+    dataHealthTimerId = null;
+  }
   
   // Remove drag listeners
   document.removeEventListener("mousemove", drag);
@@ -1854,6 +1919,8 @@ function cleanupEventListeners() {
 }
 
 window.addEventListener("message", (event) => {
+  if (window.parent !== window && event.source !== window.parent) return;
+
   const envelope = event.data;
   if (!envelope || typeof envelope !== "object") return;
 
@@ -1874,6 +1941,7 @@ window.addEventListener("message", (event) => {
     (data.cache && typeof data.cache === "object" && Object.prototype.hasOwnProperty.call(data.cache, "inventory"))
   );
   const hasXpField = Object.prototype.hasOwnProperty.call(data, "exp_farming_mining");
+  const hasInteractionField = Object.prototype.hasOwnProperty.call(data, "hidden");
 
   const hasJobField = (
     Object.prototype.hasOwnProperty.call(data, "job") ||
@@ -1884,16 +1952,20 @@ window.addEventListener("message", (event) => {
   );
 
   // Ignore unrelated object messages from other UI systems.
-  if (!hasTrackerFields && !hasJobField && !hasXpField) return;
+  if (!hasTrackerFields && !hasJobField && !hasXpField && !hasInteractionField) return;
 
   if (hasTrackerFields || hasXpField) {
     lastDataUpdateAt = Date.now();
   }
 
+  if (hasInteractionField) {
+    hasInteractionState = true;
+  }
+
   if (!hasInitialized && (hasTrackerFields || hasXpField)) {
     hasInitialized = true;
-    clearTimeout(initialDataRetryTimer);
-    clearTimeout(waitingStateTimer);
+    clearScheduledTimeout(initialDataRetryTimer);
+    clearScheduledTimeout(waitingStateTimer);
     const ws = document.getElementById("waiting-state");
     if (ws) ws.hidden = true;
   }
@@ -1914,7 +1986,7 @@ window.addEventListener("message", (event) => {
         resetReopenBackoff();
         if (!isExchangeScheduled) {
           isExchangeScheduled = true;
-          setTimeout(() => {
+          scheduleTimeout(() => {
             tryAutoVoucherExchange();
             isExchangeScheduled = false;
           }, 100);
@@ -1925,10 +1997,14 @@ window.addEventListener("message", (event) => {
     }
   }
 
+  if (hasInteractionField) {
+    updateInteractionUI();
+  }
+
   if (data.menu_choices && window.state.cache.menu_open && !isExchanging && data.menu_open == null) {
     if (!isExchangeScheduled) {
       isExchangeScheduled = true;
-      setTimeout(() => {
+      scheduleTimeout(() => {
         tryAutoVoucherExchange();
         isExchangeScheduled = false;
       }, 100);
@@ -1956,7 +2032,6 @@ window.addEventListener("message", (event) => {
   if (typeof data.max_weight === "number") lastMaxWeight = data.max_weight;
   if (typeof data["exp_farming_mining"] === "number") {
     lastMiningXp = data["exp_farming_mining"];
-    lastMiningXpUpdatedAt = Date.now();
     updateMiningXP();
   }
 
@@ -1978,10 +2053,10 @@ window.addEventListener("message", (event) => {
       const amount = invObj[ore]?.amount || 0;
       updateOreLog(ore, amount);
     }
-    clearTimeout(hudDebounceTimer);
-    hudDebounceTimer = setTimeout(() => updateHUD(lastWeight, lastMaxWeight), 100);
+    clearScheduledTimeout(hudDebounceTimer);
+    hudDebounceTimer = scheduleTimeout(() => updateHUD(lastWeight, lastMaxWeight), 100);
     
-    if (!isExchanging && autoExchangeEnabled) {
+    if (!isExchanging && autoExchangeEnabled && isAppActive()) {
       const ironAmount = invObj["mining_iron"]?.amount ?? 0;
       const copperAmount = invObj["mining_copper"]?.amount ?? 0;
 
@@ -1993,7 +2068,8 @@ window.addEventListener("message", (event) => {
         if (!window.state.cache.menu_open && ((ironAmount > 0 && ironAmount < 10) || (copperAmount > 0 && copperAmount < 10))) {
           if (!hasReopenedForLeftovers && shouldReopenMenu()) {
             hasReopenedForLeftovers = true;
-            setTimeout(() => {
+            scheduleTimeout(() => {
+              if (!isAppActive()) return;
               window.parent.postMessage({ type: "sendCommand", command: "vrp-reopen" }, "*");
             }, 500);
           }
@@ -2008,9 +2084,11 @@ window.addEventListener("message", (event) => {
           const needsCopperSingle = copperAmount > 0 && copperAmount < 10 && !hasCopperSingle;
 
           if ((needsIronSingle || needsCopperSingle) && shouldReopenMenu()) {
-            setTimeout(() => {
+            scheduleTimeout(() => {
+              if (!isAppActive()) return;
               window.parent.postMessage({ type: "forceMenuBack" }, "*");
-              setTimeout(() => {
+              scheduleTimeout(() => {
+                if (!isAppActive()) return;
                 window.parent.postMessage({ type: "sendCommand", command: "vrp-reopen" }, "*");
               }, 300);
             }, 100);
@@ -2070,9 +2148,7 @@ window.onload = () => {
   };
 
   window.addEventListener('keydown', escapeListener);
-  document.addEventListener("visibilitychange", syncTrackerAutoPoll);
   window.addEventListener("beforeunload", () => {
-    stopTrackerAutoPoll();
     cleanupEventListeners();
   });
 
@@ -2080,6 +2156,5 @@ window.onload = () => {
 
   requestInitialData();
 
-  syncTrackerAutoPoll();
 
 };
