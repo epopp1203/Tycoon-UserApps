@@ -1925,10 +1925,6 @@ window.addEventListener("message", (event) => {
     }
   }
 
-<<<<<<< Updated upstream
-  if (data.menu_choices && window.state.cache.menu_open && !isExchanging && data.menu_open === undefined) {
-    setTimeout(() => tryAutoVoucherExchange(), 100);
-=======
   if (data.menu_choices && window.state.cache.menu_open && !isExchanging && data.menu_open == null) {
     if (!isExchangeScheduled) {
       isExchangeScheduled = true;
@@ -1937,7 +1933,6 @@ window.addEventListener("message", (event) => {
         isExchangeScheduled = false;
       }, 100);
     }
->>>>>>> Stashed changes
   }
 
   const rawJob = data.job ?? data.job_name ?? data.job_title ?? data.jobName ?? data.jobTitle;
