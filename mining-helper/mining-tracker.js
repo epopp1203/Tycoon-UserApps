@@ -2012,7 +2012,6 @@ window.addEventListener("message", (event) => {
   if (hasInteractionField) {
     updateInteractionUI();
   }
-
   if (data.menu_choices && window.state.cache.menu_open && !isExchanging && data.menu_open == null) {
     if (!isExchangeScheduled) {
       isExchangeScheduled = true;
